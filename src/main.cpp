@@ -1,22 +1,109 @@
 #include <cstdio>
+#include <cstdint>
 
-int RAM[0x0800];
+#define IS_NEG(uint8_num) (1 == uint8_num >> 7)
+#define SET_C(b) (STATUS_REG |= (bool)b)
+#define SET_Z(b) (STATUS_REG |= (bool)b << 1)
+#define SET_I(b) (STATUS_REG |= (bool)b << 2)
+#define SET_D(b) (STATUS_REG |= (bool)b << 3)
+#define SET_V(b) (STATUS_REG |= (bool)b << 6)
+#define SET_N(b) (STATUS_REG |= (bool)b << 7)
+
+uint16_t PC;
+uint8_t STACK_POINTER;
+uint8_t ACCUMULATOR;
+uint8_t IND_REG_X;
+uint8_t IND_REG_Y;
+uint8_t STATUS_REG;
+
+uint8_t MEMORY[0xFFFF];
 // mapped to 0x0000 - 0x07FF in hardware
 // 0x0800 - 0x0FFF, 0x1000 - 0x17FF, 0x1800 - 0x1FFF
 // are mirrors of RAM addresses
-
-int PPU_REGISTERS[0x8];
 // mapped to 0x2000 - 0x2007 in hardware
 // 0x2008 - 0x3FFF are mirrors of PPU addresses, repeats every 8 bytes
-
-int APU_IO_REGISTERS[0x18];
 // mapped to 0x4000 - 0x4017 in hardware
-
-int CARTRIDGE[0xBFE0];
 // mapped to 0x4020 - 0xFFFF
 
+void run_instruction(uint8_t opcode) {
+    switch (opcode) {
+        case 0xCA: { // DEX
+            --IND_REG_X;
+            SET_Z(IND_REG_X == 0);
+            SET_N(IS_NEG(IND_REG_X));
+            break;
+        }
+        case 0xE8: { // INX
+            ++IND_REG_X;
+            SET_Z(IND_REG_X == 0);
+            SET_N(IS_NEG(IND_REG_X));
+            break;
+        }
+        case 0x88: { // DEY
+            --IND_REG_Y;
+            SET_Z(IND_REG_Y == 0);
+            SET_N(IS_NEG(IND_REG_Y));
+            break;
+        }
+        case 0xC8: { // INY
+            ++IND_REG_Y;
+            SET_Z(IND_REG_Y == 0);
+            SET_N(IS_NEG(IND_REG_Y));
+            break;
+        }
+        case 0x38: { // SEC
+            SET_C(1);
+            break;
+        }
+        case 0xF8: { // SED
+            SET_D(1);
+            break;
+        }
+        case 0x78: { // SEI
+            SET_I(1);
+            break;
+        }
+        case 0xAA: { // TAX
+            IND_REG_X = ACCUMULATOR;
+            SET_Z(IND_REG_X == 0);
+            SET_N(IS_NEG(IND_REG_X));
+            break;
+        }
+        case 0xA8: { // TAY
+            IND_REG_Y = ACCUMULATOR;
+            SET_Z(IND_REG_Y == 0);
+            SET_N(IS_NEG(IND_REG_Y));
+            break;
+        }
+        case 0xBA: { // TSX
+            IND_REG_X = STACK_POINTER;
+            SET_Z(IND_REG_X == 0);
+            SET_N(IS_NEG(IND_REG_X));
+            break;
+        }
+        case 0x8A: { // TXA
+            ACCUMULATOR = IND_REG_X;
+            SET_Z(ACCUMULATOR == 0);
+            SET_N(IS_NEG(ACCUMULATOR));
+            break;
+        }
+        case 0x9A: { // TXS
+            STACK_POINTER = IND_REG_X;
+            break;
+        }
+        case 0x98: { // TYA
+            ACCUMULATOR = IND_REG_Y;
+            SET_Z(ACCUMULATOR == 0);
+            SET_N(IS_NEG(ACCUMULATOR));
+            break;
+        }
+        case 0xEA: { // NOP
+            break;
+        }
+    }
+    ++PC;
+}
 
 int main(int argc, char *argv[]) {
     std::printf("nes emulator");
-    return 0;
 }
