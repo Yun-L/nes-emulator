@@ -33,6 +33,27 @@ uint8_t MEMORY[0xFFFF];
 
 void run_instruction(uint8_t opcode) {
     switch (opcode) {
+        case 0x69: { // ADC Immediate
+            break;
+        }
+        case 0x24: { // BIT ZP
+            ++PC;
+            uint8_t addr = MEMORY[PC];
+            uint8_t tmp = MEMORY[addr] & ACCUMULATOR;
+            SET_Z(tmp == 0);
+            SET_V((tmp >> 6) & 1);
+            SET_N((tmp >> 7) & 1);
+            break;
+        }
+        case 0x2C: { // BIT Abs
+            PC += 2;
+            uint16_t addr = (MEMORY[PC] << 8) + MEMORY[PC-1];
+            uint8_t tmp = MEMORY[addr] & ACCUMULATOR;
+            SET_Z(tmp == 0);
+            SET_V((tmp >> 6) & 1);
+            SET_N((tmp >> 7) & 1);
+            break;
+        }
         case 0x18: { //CLC
             SET_C(0);
             break;
