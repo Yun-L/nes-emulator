@@ -110,6 +110,29 @@ void run_instruction(uint8_t opcode) {
     ++PC;
 }
 
+void reset() {
+    PC = 0;
+    STACK_POINTER = 0;
+    ACCUMULATOR = 0;
+    IND_REG_X = 0;
+    IND_REG_Y = 0;
+    STATUS_REG = 0;
+    for (uint8_t i = 0; i < 0xFF; ++i) {
+        MEMORY[i] = 0;
+    }
+}
+
+
 int main(int argc, char *argv[]) {
     std::printf("nes emulator");
+
+    // DEX
+    reset();
+    IND_REG_X = 2;
+    run_instruction(0xCA);
+    if (IND_REG_X != 1 && !GET_Z() && !GET_N()) std::printf("DEX\n");
+    run_instruction(0xCA);
+    if (IND_REG_X != 0 && GET_Z() && !GET_N()) std::printf("DEX zero\n");
+    run_instruction(0xCA);
+    if (IND_REG_X != 0xFF && !GET_Z() && GET_N()) std::printf("DEX neg\n");
 }
