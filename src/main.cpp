@@ -33,6 +33,22 @@ uint8_t MEMORY[0xFFFF];
 
 void run_instruction(uint8_t opcode) {
     switch (opcode) {
+        case 0x18: { //CLC
+            SET_C(0);
+            break;
+        }
+        case 0xD8: { //CLD
+            SET_D(0);
+            break;
+        }
+        case 0x58: { //CLI
+            SET_I(0);
+            break;
+        }
+        case 0xB8: { //CLV
+            SET_V(0);
+            break;
+        }
         case 0xCA: { // DEX
             --IND_REG_X;
             SET_Z(IND_REG_X == 0); // TODO: find out if Z should be unset too or just set on zero
