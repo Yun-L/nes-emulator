@@ -35,7 +35,7 @@ void run_instruction(uint8_t opcode) {
     switch (opcode) {
         case 0xCA: { // DEX
             --IND_REG_X;
-            SET_Z(IND_REG_X == 0);
+            SET_Z(IND_REG_X == 0); // TODO: find out if Z should be unset too or just set on zero
             SET_N(IS_NEG(IND_REG_X));
             break;
         }
