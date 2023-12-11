@@ -34,6 +34,134 @@ uint8_t MEMORY[0xFFFF];
 void run_instruction(uint8_t opcode) {
     switch (opcode) {
         case 0x69: { // ADC Immediate
+            ++PC;
+            uint8_t sign_a = ACCUMULATOR >> 7;
+            uint8_t sign_m = MEMORY[PC] >> 7;
+            SET_C(((uint_16)ACCUMULATOR + MEMORY[PC]) > (uint8_t)0xFF);
+            ACCUMULATOR += MEMORY[PC];
+            uint8_t sign_a_fin = ACCUMULATOR >> 7;
+            SET_Z(ACCUMULATOR == 0);
+            if (sign_a == sign_m) {
+                SET_V(sign_a_fin != sign_a);
+            }
+            SET_N(sign_a_fin & 1);
+            break;
+        }
+        case 0x65: { // ADC ZP
+            ++PC;
+            uint8_t addr = MEMORY[PC];
+            uint8_t sign_a = ACCUMULATOR >> 7;
+            uint8_t sign_m = MEMORY[addr] >> 7;
+            SET_C(((uint_16)ACCUMULATOR + MEMORY[addr]) > (uint8_t)0xFF);
+            ACCUMULATOR += MEMORY[addr];
+            uint8_t sign_a_fin = ACCUMULATOR >> 7;
+            SET_Z(ACCUMULATOR == 0);
+            if (sign_a == sign_m) {
+                SET_V(sign_a_fin != sign_a);
+            }
+            SET_N(sign_a_fin & 1);
+            break;
+        }
+        case 0x75: { // ADC ZP,X
+            ++PC;
+            uint8_t addr = MEMORY[PC];
+            uint8_t m_val = MEMORY[addr + IND_REG_X];
+            uint8_t sign_a = ACCUMULATOR >> 7;
+            uint8_t sign_m = m_val >> 7;
+            SET_C(((uint_16)ACCUMULATOR + m_val) > (uint8_t)0xFF);
+            ACCUMULATOR += m_val;
+            uint8_t sign_a_fin = ACCUMULATOR >> 7;
+            SET_Z(ACCUMULATOR == 0);
+            if (sign_a == sign_m) {
+                SET_V(sign_a_fin != sign_a);
+            }
+            SET_N(sign_a_fin & 1);
+            break;
+        }
+        case 0x6D: { // ADC Abs
+            PC += 2;
+            uint16_t addr = (MEMORY[PC] << 8) + MEMORY[PC-1];
+            uint8_t m_val = MEMORY[addr];
+            uint8_t sign_a = ACCUMULATOR >> 7;
+            uint8_t sign_m = m_val >> 7;
+            SET_C(((uint_16)ACCUMULATOR + m_val) > (uint8_t)0xFF);
+            ACCUMULATOR += m_val;
+            uint8_t sign_a_fin = ACCUMULATOR >> 7;
+            SET_Z(ACCUMULATOR == 0);
+            if (sign_a == sign_m) {
+                SET_V(sign_a_fin != sign_a);
+            }
+            SET_N(sign_a_fin & 1);
+            break;
+        }
+        case 0x7D: { // ADC Abs,X
+            PC += 2;
+            uint16_t addr = (MEMORY[PC] << 8) + MEMORY[PC-1] + IND_REG_X;
+            uint8_t m_val = MEMORY[addr];
+            uint8_t sign_a = ACCUMULATOR >> 7;
+            uint8_t sign_m = m_val >> 7;
+            SET_C(((uint_16)ACCUMULATOR + m_val) > (uint8_t)0xFF);
+            ACCUMULATOR += m_val;
+            uint8_t sign_a_fin = ACCUMULATOR >> 7;
+            SET_Z(ACCUMULATOR == 0);
+            if (sign_a == sign_m) {
+                SET_V(sign_a_fin != sign_a);
+            }
+            SET_N(sign_a_fin & 1);
+            break;
+        }
+        case 0x79: { // ADC Abs,Y
+            PC += 2;
+            uint16_t addr = (MEMORY[PC] << 8) + MEMORY[PC-1] + IND_REG_Y;
+            uint8_t m_val = MEMORY[addr];
+            uint8_t sign_a = ACCUMULATOR >> 7;
+            uint8_t sign_m = m_val >> 7;
+            SET_C(((uint_16)ACCUMULATOR + m_val) > (uint8_t)0xFF);
+            ACCUMULATOR += m_val;
+            uint8_t sign_a_fin = ACCUMULATOR >> 7;
+            SET_Z(ACCUMULATOR == 0);
+            if (sign_a == sign_m) {
+                SET_V(sign_a_fin != sign_a);
+            }
+            SET_N(sign_a_fin & 1);
+            break;
+        }
+        case 0x61: { // ADC Ind,X
+            ++PC;
+            uint8_t pt = MEMORY[PC];
+            uint8_t ptx = MEMORY[pt] + IND_REG_X;
+            uint16_t addr = (MEMORY[ptx + 1] << 8) + MEMORY[ptx];
+            uint8_t m_val = MEMORY[addr];
+            uint8_t sign_a = ACCUMULATOR >> 7;
+            uint8_t sign_m = m_val >> 7;
+            SET_C(((uint_16)ACCUMULATOR + m_val) > (uint8_t)0xFF);
+            ACCUMULATOR += m_val;
+            uint8_t sign_a_fin = ACCUMULATOR >> 7;
+            SET_Z(ACCUMULATOR == 0);
+            if (sign_a == sign_m) {
+                SET_V(sign_a_fin != sign_a);
+            }
+            SET_N(sign_a_fin & 1);
+            break;
+        }
+        case 0x71: { // ADC Ind,Y
+            ++PC;
+            uint8_t pt = MEMORY[PC];
+            uint16_t addr = (MEMORY[pt + 1] << 8) + (MEMORY[pt] + IND_REG_Y);
+            uint8_t ptx = MEMORY[pt] + IND_REG_X;
+
+            uint16_t addr = (MEMORY[PC] << 8) + MEMORY[PC-1] + IND_REG_Y;
+            uint8_t m_val = MEMORY[addr];
+            uint8_t sign_a = ACCUMULATOR >> 7;
+            uint8_t sign_m = m_val >> 7;
+            SET_C(((uint_16)ACCUMULATOR + m_val) > (uint8_t)0xFF);
+            ACCUMULATOR += m_val;
+            uint8_t sign_a_fin = ACCUMULATOR >> 7;
+            SET_Z(ACCUMULATOR == 0);
+            if (sign_a == sign_m) {
+                SET_V(sign_a_fin != sign_a);
+            }
+            SET_N(sign_a_fin & 1);
             break;
         }
         case 0x24: { // BIT ZP
