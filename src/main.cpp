@@ -222,6 +222,72 @@ void run_instruction(uint8_t opcode) {
             SET_N(IS_NEG(IND_REG_Y));
             break;
         }
+        case 0xA9: { // LDA Imm
+            ++PC;
+            ACCUMULATOR = MEMORY[PC];
+            SET_Z(ACCUMULATOR == 0);
+            SET_N(IS_NEG(ACCUMULATOR));
+            break;
+        }
+        case 0xA5: { // LDA ZP
+            ++PC;
+            uint8_t addr = MEMORY[PC];
+            ACCUMULATOR = MEMORY[addr];
+            SET_Z(ACCUMULATOR == 0);
+            SET_N(IS_NEG(ACCUMULATOR));
+            break;
+        }
+        case 0xB5: { // LDA ZPX
+            ++PC;
+            uint8_t addr = MEMORY[PC];
+            ACCUMULATOR = MEMORY[addr] + IND_REG_X;
+            SET_Z(ACCUMULATOR == 0);
+            SET_N(IS_NEG(ACCUMULATOR));
+            break;
+        }
+        case 0xAD: { // LDA Abs
+            PC += 2;
+            uint16_t addr = (MEMORY[PC] << 8) + MEMORY[PC - 1];
+            ACCUMULATOR = MEMORY[addr];
+            SET_Z(ACCUMULATOR == 0);
+            SET_N(IS_NEG(ACCUMULATOR));
+            break;
+        }
+        case 0xBD: { // LDA AbsX
+            PC += 2;
+            uint16_t addr = (MEMORY[PC] << 8) + MEMORY[PC - 1];
+            ACCUMULATOR = MEMORY[addr] + IND_REG_X;
+            SET_Z(ACCUMULATOR == 0);
+            SET_N(IS_NEG(ACCUMULATOR));
+            break;
+        }
+        case 0xB9: { // LDA AbsY
+            PC += 2;
+            uint16_t addr = (MEMORY[PC] << 8) + MEMORY[PC - 1];
+            ACCUMULATOR = MEMORY[addr] + IND_REG_Y;
+            SET_Z(ACCUMULATOR == 0);
+            SET_N(IS_NEG(ACCUMULATOR));
+            break;
+        }
+        case 0xA1: { // LDA IndX
+            ++PC;
+            uint8_t pt = MEMORY[PC];
+            uint8_t ptx = MEMORY[pt] + IND_REG_X;
+            uint16_t addr = (MEMORY[ptx + 1] << 8) + MEMORY[ptx];
+            ACCUMULATOR = MEMORY[addr];
+            SET_Z(ACCUMULATOR == 0);
+            SET_N(IS_NEG(ACCUMULATOR));
+            break;
+        }
+        case 0xB1: { // LDA IndY
+            ++PC;
+            uint8_t pt = MEMORY[PC];
+            uint16_t addr = (MEMORY[pt + 1] << 8) + MEMORY[pt] + IND_REG_Y;
+            ACCUMULATOR = MEMORY[addr];
+            SET_Z(ACCUMULATOR == 0);
+            SET_N(IS_NEG(ACCUMULATOR));
+            break;
+        }
         case 0x38: { // SEC
             SET_C(1);
             break;
