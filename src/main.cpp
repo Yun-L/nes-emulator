@@ -2,12 +2,12 @@
 #include <cstdint>
 
 #define IS_NEG(uint8_num) (1 == uint8_num >> 7)
-#define SET_C(b) ((STATUS_REG &= 11111110) + (bool)b)
-#define SET_Z(b) ((STATUS_REG &= 11111101) + ((bool)b << 1))
-#define SET_I(b) ((STATUS_REG &= 11111011) + ((bool)b << 2))
-#define SET_D(b) ((STATUS_REG &= 11110111) + ((bool)b << 3))
-#define SET_V(b) ((STATUS_REG &= 10111111) + ((bool)b << 6))
-#define SET_N(b) ((STATUS_REG &= 01111111) + ((bool)b << 7))
+#define SET_C(b) ((STATUS_REG &= 11111110) | (bool)b)
+#define SET_Z(b) ((STATUS_REG &= 11111101) | ((bool)b << 1))
+#define SET_I(b) ((STATUS_REG &= 11111011) | ((bool)b << 2))
+#define SET_D(b) ((STATUS_REG &= 11110111) | ((bool)b << 3))
+#define SET_V(b) ((STATUS_REG &= 10111111) | ((bool)b << 6))
+#define SET_N(b) ((STATUS_REG &= 01111111) | ((bool)b << 7))
 #define GET_C() ((STATUS_REG & 00000001) > 0)
 #define GET_Z() ((STATUS_REG & 00000010) > 0)
 #define GET_I() ((STATUS_REG & 00000100) > 0)
