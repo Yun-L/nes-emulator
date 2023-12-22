@@ -147,10 +147,12 @@ void run_instruction(uint8_t opcode) {
         case 0x71: { // ADC Ind,Y
             ++PC;
             uint8_t pt = MEMORY[PC];
-            uint16_t addr = (MEMORY[pt + 1] << 8) + (MEMORY[pt] + IND_REG_Y);
-            uint8_t ptx = MEMORY[pt] + IND_REG_X;
-
-            uint16_t addr = (MEMORY[PC] << 8) + MEMORY[PC-1] + IND_REG_Y;
+            uint16_t eff_l = MEMORY[pt] + IND_REG_Y;
+            uint8_t eff_h = MEMORY[pt + 1];
+            // carry over to high byte if needed
+            // TODO: will need extra cycle to fix high byte
+            eff_h += (eff_l >> 8) & 0x00FF;
+            uint16_t addr = ((eff_h << 8) & 0xFF00) | (eff_l & 0x00FF);
             uint8_t m_val = MEMORY[addr];
             uint8_t sign_a = ACCUMULATOR >> 7;
             uint8_t sign_m = m_val >> 7;
