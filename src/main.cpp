@@ -91,8 +91,7 @@ void run_instruction(uint8_t opcode) {
             break;
         }
         case 0x65: { // ADC ZP
-            ++PC;
-            uint8_t addr = MEMORY[PC];
+            uint8_t addr = addr_zero_page();
             uint8_t sign_a = ACCUMULATOR >> 7;
             uint8_t sign_m = MEMORY[addr] >> 7;
             SET_C(((uint_16)ACCUMULATOR + MEMORY[addr]) > (uint8_t)0xFF);
@@ -106,9 +105,8 @@ void run_instruction(uint8_t opcode) {
             break;
         }
         case 0x75: { // ADC ZP,X
-            ++PC;
-            uint8_t addr = MEMORY[PC];
-            uint8_t m_val = MEMORY[addr + IND_REG_X];
+            uint8_t addr = addr_zero_page_x();
+            uint8_t m_val = MEMORY[addr];
             uint8_t sign_a = ACCUMULATOR >> 7;
             uint8_t sign_m = m_val >> 7;
             SET_C(((uint_16)ACCUMULATOR + m_val) > (uint8_t)0xFF);
@@ -122,8 +120,7 @@ void run_instruction(uint8_t opcode) {
             break;
         }
         case 0x6D: { // ADC Abs
-            PC += 2;
-            uint16_t addr = (MEMORY[PC] << 8) + MEMORY[PC-1];
+            uint16_t addr = addr_abs();
             uint8_t m_val = MEMORY[addr];
             uint8_t sign_a = ACCUMULATOR >> 7;
             uint8_t sign_m = m_val >> 7;
@@ -138,8 +135,7 @@ void run_instruction(uint8_t opcode) {
             break;
         }
         case 0x7D: { // ADC Abs,X
-            PC += 2;
-            uint16_t addr = (MEMORY[PC] << 8) + MEMORY[PC-1] + IND_REG_X;
+            uint16_t addr = addr_abs_x();
             uint8_t m_val = MEMORY[addr];
             uint8_t sign_a = ACCUMULATOR >> 7;
             uint8_t sign_m = m_val >> 7;
@@ -154,8 +150,7 @@ void run_instruction(uint8_t opcode) {
             break;
         }
         case 0x79: { // ADC Abs,Y
-            PC += 2;
-            uint16_t addr = (MEMORY[PC] << 8) + MEMORY[PC-1] + IND_REG_Y;
+            uint16_t addr = addr_abs_y();
             uint8_t m_val = MEMORY[addr];
             uint8_t sign_a = ACCUMULATOR >> 7;
             uint8_t sign_m = m_val >> 7;
@@ -169,11 +164,8 @@ void run_instruction(uint8_t opcode) {
             SET_N(sign_a_fin & 1);
             break;
         }
-        case 0x61: { // ADC Ind,X
-            ++PC;
-            uint8_t pt = MEMORY[PC];
-            uint8_t ptx = MEMORY[pt] + IND_REG_X;
-            uint16_t addr = (MEMORY[ptx + 1] << 8) + MEMORY[ptx];
+        case 0x61: { // ADC (Ind,X)
+            uint16_t addr = addr_indexed_indirect();
             uint8_t m_val = MEMORY[addr];
             uint8_t sign_a = ACCUMULATOR >> 7;
             uint8_t sign_m = m_val >> 7;
@@ -187,15 +179,8 @@ void run_instruction(uint8_t opcode) {
             SET_N(sign_a_fin & 1);
             break;
         }
-        case 0x71: { // ADC Ind,Y
-            ++PC;
-            uint8_t pt = MEMORY[PC];
-            uint16_t eff_l = MEMORY[pt] + IND_REG_Y;
-            uint8_t eff_h = MEMORY[pt + 1];
-            // carry over to high byte if needed
-            // TODO: will need extra cycle to fix high byte
-            eff_h += (eff_l >> 8) & 0x00FF;
-            uint16_t addr = ((eff_h << 8) & 0xFF00) | (eff_l & 0x00FF);
+        case 0x71: { // ADC (Ind),Y
+            uint16_t addr = addr_indirect_indexed();
             uint8_t m_val = MEMORY[addr];
             uint8_t sign_a = ACCUMULATOR >> 7;
             uint8_t sign_m = m_val >> 7;
@@ -209,10 +194,8 @@ void run_instruction(uint8_t opcode) {
             SET_N(sign_a_fin & 1);
             break;
         }
-        case 0x24: { // BIT ZP
         case 0x29: { // AND Immediate
             ++PC;
-            uint8_t addr = MEMORY[PC];
             ACCUMULATOR &= MEMORY[PC];
             SET_Z(ACCUMULATOR == 0);
             SET_N((ACCUMULATOR >> 7) & 1);
@@ -267,6 +250,8 @@ void run_instruction(uint8_t opcode) {
             SET_N((ACCUMULATOR >> 7) & 1);
             break;
         }
+        case 0x24: { // BIT ZP
+            uint8_t addr = addr_zero_page();
             uint8_t tmp = MEMORY[addr] & ACCUMULATOR;
             SET_Z(tmp == 0);
             SET_V((tmp >> 6) & 1);
@@ -274,8 +259,7 @@ void run_instruction(uint8_t opcode) {
             break;
         }
         case 0x2C: { // BIT Abs
-            PC += 2;
-            uint16_t addr = (MEMORY[PC] << 8) + MEMORY[PC-1];
+            uint16_t addr = addr_abs();
             uint8_t tmp = MEMORY[addr] & ACCUMULATOR;
             SET_Z(tmp == 0);
             SET_V((tmp >> 6) & 1);
@@ -330,8 +314,7 @@ void run_instruction(uint8_t opcode) {
             break;
         }
         case 0xA5: { // LDA ZP
-            ++PC;
-            uint8_t addr = MEMORY[PC];
+            uint8_t addr = addr_zero_page();
             ACCUMULATOR = MEMORY[addr];
             SET_Z(ACCUMULATOR == 0);
             SET_N(IS_NEG(ACCUMULATOR));
@@ -346,43 +329,35 @@ void run_instruction(uint8_t opcode) {
             break;
         }
         case 0xAD: { // LDA Abs
-            PC += 2;
-            uint16_t addr = (MEMORY[PC] << 8) + MEMORY[PC - 1];
+            uint16_t addr = addr_abs();
             ACCUMULATOR = MEMORY[addr];
             SET_Z(ACCUMULATOR == 0);
             SET_N(IS_NEG(ACCUMULATOR));
             break;
         }
         case 0xBD: { // LDA AbsX
-            PC += 2;
-            uint16_t addr = (MEMORY[PC] << 8) + MEMORY[PC - 1];
-            ACCUMULATOR = MEMORY[addr] + IND_REG_X;
-            SET_Z(ACCUMULATOR == 0);
-            SET_N(IS_NEG(ACCUMULATOR));
-            break;
-        }
-        case 0xB9: { // LDA AbsY
-            PC += 2;
-            uint16_t addr = (MEMORY[PC] << 8) + MEMORY[PC - 1];
-            ACCUMULATOR = MEMORY[addr] + IND_REG_Y;
-            SET_Z(ACCUMULATOR == 0);
-            SET_N(IS_NEG(ACCUMULATOR));
-            break;
-        }
-        case 0xA1: { // LDA IndX
-            ++PC;
-            uint8_t pt = MEMORY[PC];
-            uint8_t ptx = MEMORY[pt] + IND_REG_X;
-            uint16_t addr = (MEMORY[ptx + 1] << 8) + MEMORY[ptx];
+            uint16_t addr = addr_abs_x();
             ACCUMULATOR = MEMORY[addr];
             SET_Z(ACCUMULATOR == 0);
             SET_N(IS_NEG(ACCUMULATOR));
             break;
         }
-        case 0xB1: { // LDA IndY
-            ++PC;
-            uint8_t pt = MEMORY[PC];
-            uint16_t addr = (MEMORY[pt + 1] << 8) + MEMORY[pt] + IND_REG_Y;
+        case 0xB9: { // LDA AbsY
+            uint16_t addr = addr_abs_y();
+            ACCUMULATOR = MEMORY[addr];
+            SET_Z(ACCUMULATOR == 0);
+            SET_N(IS_NEG(ACCUMULATOR));
+            break;
+        }
+        case 0xA1: { // LDA (Ind,X)
+            uint16_t addr = addr_indexed_indirect();
+            ACCUMULATOR = MEMORY[addr];
+            SET_Z(ACCUMULATOR == 0);
+            SET_N(IS_NEG(ACCUMULATOR));
+            break;
+        }
+        case 0xB1: { // LDA (Ind),Y
+            uint16_t addr = addr_indirect_indexed();
             ACCUMULATOR = MEMORY[addr];
             SET_Z(ACCUMULATOR == 0);
             SET_N(IS_NEG(ACCUMULATOR));
