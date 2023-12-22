@@ -210,8 +210,63 @@ void run_instruction(uint8_t opcode) {
             break;
         }
         case 0x24: { // BIT ZP
+        case 0x29: { // AND Immediate
             ++PC;
             uint8_t addr = MEMORY[PC];
+            ACCUMULATOR &= MEMORY[PC];
+            SET_Z(ACCUMULATOR == 0);
+            SET_N((ACCUMULATOR >> 7) & 1);
+            break;
+        }
+        case 0x25: { // AND ZP
+            uint8_t addr = addr_zero_page();
+            ACCUMULATOR &= MEMORY[addr];
+            SET_Z(ACCUMULATOR == 0);
+            SET_N((ACCUMULATOR >> 7) & 1);
+            break;
+        }
+        case 0x35: { // AND ZP,X
+            uint8_t addr = addr_zero_page_x();
+            ACCUMULATOR &= MEMORY[addr];
+            SET_Z(ACCUMULATOR == 0);
+            SET_N((ACCUMULATOR >> 7) & 1);
+            break;
+        }
+        case 0x2D: { // AND Abs
+            uint16_t addr = addr_abs();
+            ACCUMULATOR &= MEMORY[addr];
+            SET_Z(ACCUMULATOR == 0);
+            SET_N((ACCUMULATOR >> 7) & 1);
+            break;
+        }
+        case 0x3D: { // AND Abs,X
+            uint16_t addr = addr_abs_x();
+            ACCUMULATOR &= MEMORY[addr];
+            SET_Z(ACCUMULATOR == 0);
+            SET_N((ACCUMULATOR >> 7) & 1);
+            break;
+        }
+        case 0x39: { // AND Abs,Y
+            uint16_t addr = addr_abs_y();
+            ACCUMULATOR &= MEMORY[addr];
+            SET_Z(ACCUMULATOR == 0);
+            SET_N((ACCUMULATOR >> 7) & 1);
+            break;
+        }
+        case 0x21: { // AND (Ind,X)
+            uint16_t addr = addr_indexed_indirect();
+            ACCUMULATOR &= MEMORY[addr];
+            SET_Z(ACCUMULATOR == 0);
+            SET_N((ACCUMULATOR >> 7) & 1);
+            break;
+        }
+        case 0x31: { // AND (Ind),Y
+            uint16_t addr = addr_indirect_indexed();
+            ACCUMULATOR &= MEMORY[addr];
+            SET_Z(ACCUMULATOR == 0);
+            SET_N((ACCUMULATOR >> 7) & 1);
+            break;
+        }
             uint8_t tmp = MEMORY[addr] & ACCUMULATOR;
             SET_Z(tmp == 0);
             SET_V((tmp >> 6) & 1);
