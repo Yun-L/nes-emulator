@@ -30,6 +30,49 @@ uint8_t MEMORY[0xFFFF];
 // 0x2008 - 0x3FFF are mirrors of PPU addresses, repeats every 8 bytes
 // mapped to 0x4000 - 0x4017 in hardware
 // mapped to 0x4020 - 0xFFFF
+uint8_t addr_zero_page() {
+    ++PC;
+    return MEMORY[PC];
+}
+
+uint8_t addr_zero_page_x() {
+    return addr_zero_page() + IND_REG_X; // zero page wrap around
+}
+
+uint8_t addr_zero_page_y() {
+    return addr_zero_page() + IND_REG_Y; // zero page wrap around
+}
+
+uint16_t addr_abs() {
+    PC += 2;
+    return ((MEMORY[PC] << 8) & 0xFF00) | (MEMORY[PC - 1] & 0x00FF);
+}
+
+uint16_t addr_abs_x() {
+    return addr_abs() + IND_REG_X;
+}
+
+uint16_t addr_abs_y() {
+    return addr_abs() + IND_REG_Y;
+}
+
+uint16_t addr_indexed_indirect() {
+    ++PC;
+    uint8_t pt = MEMORY[PC];
+    uint8_t ptx = MEMORY[pt] + IND_REG_X; // zero page wrap around
+    return ((MEMORY[ptx + 1] << 8) & 0xFF00) | (MEMORY[ptx] & 0x00FF);
+}
+
+uint16_t addr_indirect_indexed() {
+    ++PC;
+    uint8_t pt = MEMORY[PC];
+    uint16_t eff_l = MEMORY[pt] + IND_REG_Y;
+    uint8_t eff_h = MEMORY[pt + 1];
+    // carry over to high byte if needed
+    // TODO: will need extra cycle to fix high byte
+    eff_h += (eff_l >> 8) & 0x00FF;
+    return ((eff_h << 8) & 0xFF00) | (eff_l & 0x00FF);
+}
 
 void run_instruction(uint8_t opcode) {
     switch (opcode) {
