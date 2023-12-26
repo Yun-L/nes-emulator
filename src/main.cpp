@@ -250,6 +250,45 @@ void run_instruction(uint8_t opcode) {
             SET_N((ACCUMULATOR >> 7) & 1);
             break;
         }
+        case 0x0A: { // ASL A
+            SET_C((ACCUMULATOR >> 7) & 1);
+            ACCUMULATOR = ACCUMULATOR << 1;
+            SET_Z(ACCUMULATOR == 0);
+            SET_N((ACCUMULATOR >> 7) & 1);
+            break;
+        }
+        case 0x06: { // ASL ZP
+            uint8_t addr = addr_zero_page();
+            SET_C((MEMORY[addr] >> 7) & 1);
+            MEMORY[addr] = MEMORY[addr] << 1;
+            SET_Z(MEMORY[addr] == 0);
+            SET_N((MEMORY[addr] >> 7) & 1);
+            break;
+        }
+        case 0x16: { // ASL ZP,X
+            uint8_t addr = addr_zero_page_x();
+            SET_C((MEMORY[addr] >> 7) & 1);
+            MEMORY[addr] = MEMORY[addr] << 1;
+            SET_Z(MEMORY[addr] == 0);
+            SET_N((MEMORY[addr] >> 7) & 1);
+            break;
+        }
+        case 0x0E: { // ASL Abs
+            uint16_t addr = addr_abs();
+            SET_C((MEMORY[addr] >> 7) & 1);
+            MEMORY[addr] = MEMORY[addr] << 1;
+            SET_Z(MEMORY[addr] == 0);
+            SET_N((MEMORY[addr] >> 7) & 1);
+            break;
+        }
+        case 0x1E: { // ASL Abs,X
+            uint16_t addr = addr_abs_x();
+            SET_C((MEMORY[addr] >> 7) & 1);
+            MEMORY[addr] = MEMORY[addr] << 1;
+            SET_Z(MEMORY[addr] == 0);
+            SET_N((MEMORY[addr] >> 7) & 1);
+            break;
+        }
         case 0x24: { // BIT ZP
             uint8_t addr = addr_zero_page();
             uint8_t tmp = MEMORY[addr] & ACCUMULATOR;
