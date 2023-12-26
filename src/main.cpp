@@ -452,6 +452,28 @@ void run_instruction(uint8_t opcode) {
             SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
             break;
         }
+        case 0xC0: { // CPY Imm
+            ++PC;
+            uint8_t val = MEMORY[PC];
+            SET_C(IND_REG_Y >= val);
+            SET_Z(IND_REG_Y == val);
+            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
+            break;
+        }
+        case 0xC4: { // CPY ZP
+            uint8_t val = MEMORY[addr_zero_page()];
+            SET_C(IND_REG_Y >= val);
+            SET_Z(IND_REG_Y == val);
+            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
+            break;
+        }
+        case 0xCC: { // CPY Abs
+            uint8_t val = MEMORY[addr_abs()];
+            SET_C(IND_REG_Y >= val);
+            SET_Z(IND_REG_Y == val);
+            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
+            break;
+        }
         case 0xCA: { // DEX
             --IND_REG_X;
             SET_Z(IND_REG_X == 0); // TODO: find out if Z should be unset too or just set on zero
