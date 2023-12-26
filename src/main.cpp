@@ -474,6 +474,38 @@ void run_instruction(uint8_t opcode) {
             SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
             break;
         }
+        case 0xC6: { // DEC ZP
+            uint8_t addr = addr_zero_page();
+            MEMORY[addr] -= 1; // TODO: what should happen at 0?
+            uint8_t val = MEMORY[addr];
+            SET_Z(val == 0); // TODO: find out if Z should be unset too or just set on zero
+            SET_N(IS_NEG(val));
+            break;
+        }
+        case 0xD6: { // DEC ZP,X
+            uint8_t addr = addr_zero_page_x();
+            MEMORY[addr] -= 1; // TODO: what should happen at 0?
+            uint8_t val = MEMORY[addr];
+            SET_Z(val == 0); // TODO: find out if Z should be unset too or just set on zero
+            SET_N(IS_NEG(val));
+            break;
+        }
+        case 0xCE: { // DEC Abs
+            uint8_t addr = addr_abs();
+            MEMORY[addr] -= 1; // TODO: what should happen at 0?
+            uint8_t val = MEMORY[addr];
+            SET_Z(val == 0); // TODO: find out if Z should be unset too or just set on zero
+            SET_N(IS_NEG(val));
+            break;
+        }
+        case 0xDE: { // DEX Abs,X
+            uint8_t addr = addr_abs_x();
+            MEMORY[addr] -= 1; // TODO: what should happen at 0?
+            uint8_t val = MEMORY[addr];
+            SET_Z(val == 0); // TODO: find out if Z should be unset too or just set on zero
+            SET_N(IS_NEG(val));
+            break;
+        }
         case 0xCA: { // DEX
             --IND_REG_X;
             SET_Z(IND_REG_X == 0); // TODO: find out if Z should be unset too or just set on zero
