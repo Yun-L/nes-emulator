@@ -373,6 +373,63 @@ void run_instruction(uint8_t opcode) {
             SET_V(0);
             break;
         }
+        case 0xC9: { // CMP Imm
+            ++PC;
+            uint8_t val = MEMORY[PC];
+            SET_C(ACCUMULATOR >= val);
+            SET_Z(ACCUMULATOR == val);
+            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
+            break;
+        }
+        case 0xC5: { // CMP ZP
+            uint8_t val = MEMORY[addr_zero_page());
+            SET_C(ACCUMULATOR >= val);
+            SET_Z(ACCUMULATOR == val);
+            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
+            break;
+        }
+        case 0xD5: { // CMP ZP,X
+            uint8_t val = MEMORY[addr_zero_page_x());
+            SET_C(ACCUMULATOR >= val);
+            SET_Z(ACCUMULATOR == val);
+            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
+            break;
+        }
+        case 0xCD: { // CMP Abs
+            uint8_t val = MEMORY[addr_abs());
+            SET_C(ACCUMULATOR >= val);
+            SET_Z(ACCUMULATOR == val);
+            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
+            break;
+        }
+        case 0xDD: { // CMP Abs, X
+            uint8_t val = MEMORY[addr_abs_x());
+            SET_C(ACCUMULATOR >= val);
+            SET_Z(ACCUMULATOR == val);
+            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
+            break;
+        }
+        case 0xD9: { // CMP Abs, Y
+            uint8_t val = MEMORY[addr_abs_y());
+            SET_C(ACCUMULATOR >= val);
+            SET_Z(ACCUMULATOR == val);
+            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
+            break;
+        }
+        case 0xC1: { // CMP (Ind,X)
+            uint8_t val = MEMORY[addr_indexed_indirect());
+            SET_C(ACCUMULATOR >= val);
+            SET_Z(ACCUMULATOR == val);
+            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
+            break;
+        }
+        case 0xD1: { // CMP (Ind),Y
+            uint8_t val = MEMORY[addr_indirect_indexed());
+            SET_C(ACCUMULATOR >= val);
+            SET_Z(ACCUMULATOR == val);
+            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
+            break;
+        }
         case 0xCA: { // DEX
             --IND_REG_X;
             SET_Z(IND_REG_X == 0); // TODO: find out if Z should be unset too or just set on zero
