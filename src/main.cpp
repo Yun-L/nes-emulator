@@ -74,6 +74,12 @@ uint16_t addr_indirect_indexed() {
     return ((eff_h << 8) & 0xFF00) | (eff_l & 0x00FF);
 }
 
+uint8_t addr_relative() {
+    ++PC;
+    uint8_t operand = MEMORY[PC];
+    return operand;
+}
+
 void run_instruction(uint8_t opcode) {
     switch (opcode) {
         case 0x69: { // ADC Immediate
@@ -289,6 +295,18 @@ void run_instruction(uint8_t opcode) {
             SET_N((MEMORY[addr] >> 7) & 1);
             break;
         }
+        case 0xB0: { // BCS
+            if (GET_C()) {
+                PC += addr_relative(); // TODO: should it be addr-1?
+            }
+            break;
+        }
+        case 0xF0: { // BEQ
+            if (GET_Z()) {
+                PC += addr_relative(); // TODO: see BCS
+            }
+            break;
+        }
         case 0x24: { // BIT ZP
             uint8_t addr = addr_zero_page();
             uint8_t tmp = MEMORY[addr] & ACCUMULATOR;
@@ -303,6 +321,40 @@ void run_instruction(uint8_t opcode) {
             SET_Z(tmp == 0);
             SET_V((tmp >> 6) & 1);
             SET_N((tmp >> 7) & 1);
+            break;
+        }
+        case 0x30: { // BMI
+            if (GET_N()) {
+                PC += addr_relative(); // TODO: see BCS
+            }
+            break;
+        }
+        case 0xD0: { // BNE
+            if (!GET_Z()) {
+                PC += addr_relative(); // TODO: see BCS
+            }
+            break;
+        }
+        case 0x10: { // BPL
+            if (!GET_N()) {
+                PC += addr_relative(); // TODO: see BCS
+            }
+            break;
+        }
+        case 0x00: { // BRK
+            // TODO: not sure how to handle this rn
+            break;
+        }
+        case 0x50: { // BVC
+            if (!GET_V()) {
+                PC += addr_relative(); // TODO: see BCS
+            }
+            break;
+        }
+        case 0x70: { // BVS
+            if (GET_V()) {
+                PC += addr_relative(); // TODO: see BCS
+            }
             break;
         }
         case 0x18: { //CLC
