@@ -518,6 +518,63 @@ void run_instruction(uint8_t opcode) {
             SET_N(IS_NEG(IND_REG_Y));
             break;
         }
+        case 0x49: { // EOR
+            ++PC;
+            uint8_t val = MEMORY[PC];
+            ACCUMULATOR = ACCUMULATOR ^ val;
+            SET_Z(A == 0);
+            SET_N(IS_NEG(ACCUMULATOR));
+            break;
+        }
+        case 0x45: { // EOR ZP
+            uint8_t val == MEMORY[addr_zero_page()];
+            ACCUMULATOR = ACCUMULATOR ^ val;
+            SET_Z(A == 0);
+            SET_N(IS_NEG(ACCUMULATOR));
+            break;
+        }
+        case 0x55: { // EOR ZP,X
+            uint8_t val == MEMORY[addr_zero_page_x()];
+            ACCUMULATOR = ACCUMULATOR ^ val;
+            SET_Z(A == 0);
+            SET_N(IS_NEG(ACCUMULATOR));
+            break;
+        }
+        case 0x4D: { // EOR Abs
+            uint8_t val == MEMORY[addr_abs()];
+            ACCUMULATOR = ACCUMULATOR ^ val;
+            SET_Z(A == 0);
+            SET_N(IS_NEG(ACCUMULATOR));
+            break;
+        }
+        case 0x5D: { // EOR Abs,X
+            uint8_t val == MEMORY[addr_abs_x()];
+            ACCUMULATOR = ACCUMULATOR ^ val;
+            SET_Z(A == 0);
+            SET_N(IS_NEG(ACCUMULATOR));
+            break;
+        }
+        case 0x59: { // EOR Abs,Y
+            uint8_t val == MEMORY[addr_abs_y()];
+            ACCUMULATOR = ACCUMULATOR ^ val;
+            SET_Z(A == 0);
+            SET_N(IS_NEG(ACCUMULATOR));
+            break;
+        }
+        case 0x41: { // EOR (Ind,X)
+            uint8_t val == MEMORY[addr_indexed_indirect()];
+            ACCUMULATOR = ACCUMULATOR ^ val;
+            SET_Z(A == 0);
+            SET_N(IS_NEG(ACCUMULATOR));
+            break;
+        }
+        case 0x51: { // EOR (Ind),Y
+            uint8_t val == MEMORY[addr_indirect_indexed()];
+            ACCUMULATOR = ACCUMULATOR ^ val;
+            SET_Z(A == 0);
+            SET_N(IS_NEG(ACCUMULATOR));
+            break;
+        }
         case 0xE8: { // INX
             ++IND_REG_X;
             SET_Z(IND_REG_X == 0);
