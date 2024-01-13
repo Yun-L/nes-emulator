@@ -512,16 +512,16 @@ void run_instruction(uint8_t opcode) {
             SET_N(IS_NEG(IND_REG_X));
             break;
         }
-        case 0xE8: { // INX
-            ++IND_REG_X;
-            SET_Z(IND_REG_X == 0);
-            SET_N(IS_NEG(IND_REG_X));
-            break;
-        }
         case 0x88: { // DEY
             --IND_REG_Y;
             SET_Z(IND_REG_Y == 0);
             SET_N(IS_NEG(IND_REG_Y));
+            break;
+        }
+        case 0xE8: { // INX
+            ++IND_REG_X;
+            SET_Z(IND_REG_X == 0);
+            SET_N(IS_NEG(IND_REG_X));
             break;
         }
         case 0xC8: { // INY
