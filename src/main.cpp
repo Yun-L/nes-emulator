@@ -16,7 +16,7 @@
 #define GET_N() ((STATUS_REG & 0b10000000) > 0)
 
 uint16_t PC;
-uint8_t STACK_POINTER;
+uint8_t STACK_POINTER; //stack is 0x0100 - 0x01FF in memory, pointer is least significant half
 uint8_t ACCUMULATOR;
 uint8_t IND_REG_X;
 uint8_t IND_REG_Y;
@@ -491,7 +491,7 @@ void run_instruction(uint8_t opcode) {
             break;
         }
         case 0xCE: { // DEC Abs
-            uint8_t addr = addr_abs();
+            uint16_t addr = addr_abs();
             MEMORY[addr] -= 1; // TODO: what should happen at 0?
             uint8_t val = MEMORY[addr];
             SET_Z(val == 0); // TODO: find out if Z should be unset too or just set on zero
@@ -499,7 +499,7 @@ void run_instruction(uint8_t opcode) {
             break;
         }
         case 0xDE: { // DEX Abs,X
-            uint8_t addr = addr_abs_x();
+            uint16_t addr = addr_abs_x();
             MEMORY[addr] -= 1; // TODO: what should happen at 0?
             uint8_t val = MEMORY[addr];
             SET_Z(val == 0); // TODO: find out if Z should be unset too or just set on zero
@@ -585,6 +585,14 @@ void run_instruction(uint8_t opcode) {
             ++IND_REG_Y;
             SET_Z(IND_REG_Y == 0);
             SET_N(IS_NEG(IND_REG_Y));
+            break;
+        }
+        case 0x20: { //JSR
+            uint16_t addr = addr_abs();
+            STACK_POINTER -= 2;
+            MEMORY[STACK_POINTER + 2] = (PC & 0xFF00) >> 8;
+            MEMORY[STACK_POINTER + 1] = PC & 0xFF;
+            PC = addr;
             break;
         }
         case 0xA9: { // LDA Imm
