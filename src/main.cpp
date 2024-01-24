@@ -80,6 +80,98 @@ uint8_t addr_relative() {
     return operand;
 }
 
+// 6510 Instructions by Addressing Modes
+
+// off- ++++++++++ Positive ++++++++++  ---------- Negative ----------
+// set  00      20      40      60      80      a0      c0      e0      mode
+
+// +00  BRK     JSR     RTI     RTS     NOP*    LDY     CPY     CPX     Mixed
+// +01  ORA     AND     EOR     ADC     STA     LDA     CMP     SBC     (indir,x)
+// +02   t       t       t       t      NOP*t   LDX     NOP*t   NOP*t     ? /immed
+// +03  SLO*    RLA*    SRE*    RRA*    SAX*    LAX*    DCP*    ISB*    (indir,x)
+// +04  NOP*    BIT     NOP*    NOP*    STY     LDY     CPY     CPX     Zeropage
+// +05  ORA     AND     EOR     ADC     STA     LDA     CMP     SBC     Zeropage
+// +06  ASL     ROL     LSR     ROR     STX     LDX     DEC     INC     Zeropage
+// +07  SLO*    RLA*    SRE*    RRA*    SAX*    LAX*    DCP*    ISB*    Zeropage
+
+// +08  PHP     PLP     PHA     PLA     DEY     TAY     INY     INX     Implied
+// +09  ORA     AND     EOR     ADC     NOP*    LDA     CMP     SBC     Immediate
+// +0a  ASL     ROL     LSR     ROR     TXA     TAX     DEX     NOP     Accu/impl
+// +0b  ANC**   ANC**   ASR**   ARR**   ANE**   LXA**   SBX**   SBC*    Immediate
+// +0c  NOP*    BIT     JMP     JMP ()  STY     LDY     CPY     CPX     Absolute
+// +0d  ORA     AND     EOR     ADC     STA     LDA     CMP     SBC     Absolute
+// +0e  ASL     ROL     LSR     ROR     STX     LDX     DEC     INC     Absolute
+// +0f  SLO*    RLA*    SRE*    RRA*    SAX*    LAX*    DCP*    ISB*    Absolute
+
+// +10  BPL     BMI     BVC     BVS     BCC     BCS     BNE     BEQ     Relative
+// +11  ORA     AND     EOR     ADC     STA     LDA     CMP     SBC     (indir),y
+// +12   t       t       t       t       t       t       t       t         ?
+// +13  SLO*    RLA*    SRE*    RRA*    SHA**   LAX*    DCP*    ISB*    (indir),y
+// +14  NOP*    NOP*    NOP*    NOP*    STY     LDY     NOP*    NOP*    Zeropage,x
+// +15  ORA     AND     EOR     ADC     STA     LDA     CMP     SBC     Zeropage,x
+// +16  ASL     ROL     LSR     ROR     STX  y) LDX  y) DEC     INC     Zeropage,x
+// +17  SLO*    RLA*    SRE*    RRA*    SAX* y) LAX* y) DCP*    ISB*    Zeropage,x
+
+// +18  CLC     SEC     CLI     SEI     TYA     CLV     CLD     SED     Implied
+// +19  ORA     AND     EOR     ADC     STA     LDA     CMP     SBC     Absolute,y
+// +1a  NOP*    NOP*    NOP*    NOP*    TXS     TSX     NOP*    NOP*    Implied
+// +1b  SLO*    RLA*    SRE*    RRA*    SHS**   LAS**   DCP*    ISB*    Absolute,y
+// +1c  NOP*    NOP*    NOP*    NOP*    SHY**   LDY     NOP*    NOP*    Absolute,x
+// +1d  ORA     AND     EOR     ADC     STA     LDA     CMP     SBC     Absolute,x
+// +1e  ASL     ROL     LSR     ROR     SHX**y) LDX  y) DEC     INC     Absolute,x
+// +1f  SLO*    RLA*    SRE*    RRA*    SHA**y) LAX* y) DCP*    ISB*    Absolute,x
+
+// see above table
+uint16_t get_addr(uint8_t opcode) {
+    uint8_t lo5 = opcode & 0b00011111;
+    uint8_t hi3 = (opcode >> 5) & 0b00000111;
+    switch (lo5) {
+        case 0x00:
+            switch (hi3) {
+                case 0x1: return addr_abs();
+                case 0x0:
+                case 0x2:
+                case 0x3: return NULL;
+                case 0x4:
+                case 0x5:
+                case 0x6:
+                case 0x7: return ++PC;
+            }
+        case 0x02:
+        case 0x09:
+        case 0x0B: return ++PC; // Immediate
+        case 0x01:
+        case 0x03: return addr_indexed_indirect();
+        case 0x04:
+        case 0x05:
+        case 0x06:
+        case 0x07: return addr_zero_page();
+        case 0x08:
+        case 0x0A:
+        case 0x18:
+        case 0x1A: return NULL; // implied
+        case 0x0C:
+        case 0x0D:
+        case 0x0E:
+        case 0x0F: return addr_abs();
+        case 0x10: return addr_relative();
+        case 0x11:
+        case 0x13: return addr_indirect_indexed();
+        case 0x14:
+        case 0x15:
+        case 0x16:
+        case 0x17: return addr_zero_page_x();
+        case 0x19:
+        case 0x1B: return addr_abs_y();
+        case 0x1C:
+        case 0x1D:
+        case 0x1E:
+        case 0x1F: return addr_abs_x();
+        default:
+            break;
+    }
+}
+
 void run_instruction(uint8_t opcode) {
     switch (opcode) {
         case 0x69: { // ADC Immediate
