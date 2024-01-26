@@ -30,6 +30,11 @@ uint8_t MEMORY[0xFFFF];
 // 0x2008 - 0x3FFF are mirrors of PPU addresses, repeats every 8 bytes
 // mapped to 0x4000 - 0x4017 in hardware
 // mapped to 0x4020 - 0xFFFF
+
+uint8_t addr_immediate() {
+    return ++PC;
+}
+
 uint8_t addr_zero_page() {
     ++PC;
     return MEMORY[PC];
@@ -80,721 +85,432 @@ uint8_t addr_relative() {
     return operand;
 }
 
-// 6510 Instructions by Addressing Modes
+uint16_t addr_implied() {
+    return 0; // TODO:
+}
 
-// off- ++++++++++ Positive ++++++++++  ---------- Negative ----------
-// set  00      20      40      60      80      a0      c0      e0      mode
+uint16_t addr_accumulator() {
+    return 0; // TODO:
+}
 
-// +00  BRK     JSR     RTI     RTS     NOP*    LDY     CPY     CPX     Mixed
-// +01  ORA     AND     EOR     ADC     STA     LDA     CMP     SBC     (indir,x)
-// +02   t       t       t       t      NOP*t   LDX     NOP*t   NOP*t     ? /immed
-// +03  SLO*    RLA*    SRE*    RRA*    SAX*    LAX*    DCP*    ISB*    (indir,x)
-// +04  NOP*    BIT     NOP*    NOP*    STY     LDY     CPY     CPX     Zeropage
-// +05  ORA     AND     EOR     ADC     STA     LDA     CMP     SBC     Zeropage
-// +06  ASL     ROL     LSR     ROR     STX     LDX     DEC     INC     Zeropage
-// +07  SLO*    RLA*    SRE*    RRA*    SAX*    LAX*    DCP*    ISB*    Zeropage
+void ADC(uint16_t addr) {
+    uint8_t sign_a = ACCUMULATOR >> 7;
+    uint8_t sign_m = MEMORY[PC] >> 7;
+    SET_C(((uint_16)ACCUMULATOR + MEMORY[PC]) > (uint8_t)0xFF);
+    ACCUMULATOR += MEMORY[addr];
+    uint8_t sign_a_fin = ACCUMULATOR >> 7;
+    SET_Z(ACCUMULATOR == 0);
+    if (sign_a == sign_m) {
+        SET_V(sign_a_fin != sign_a);
+    }
+    SET_N(sign_a_fin & 1);
+}
 
-// +08  PHP     PLP     PHA     PLA     DEY     TAY     INY     INX     Implied
-// +09  ORA     AND     EOR     ADC     NOP*    LDA     CMP     SBC     Immediate
-// +0a  ASL     ROL     LSR     ROR     TXA     TAX     DEX     NOP     Accu/impl
-// +0b  ANC**   ANC**   ASR**   ARR**   ANE**   LXA**   SBX**   SBC*    Immediate
-// +0c  NOP*    BIT     JMP     JMP ()  STY     LDY     CPY     CPX     Absolute
-// +0d  ORA     AND     EOR     ADC     STA     LDA     CMP     SBC     Absolute
-// +0e  ASL     ROL     LSR     ROR     STX     LDX     DEC     INC     Absolute
-// +0f  SLO*    RLA*    SRE*    RRA*    SAX*    LAX*    DCP*    ISB*    Absolute
+void AND(uint16_t addr) {
+    ACCUMULATOR &= MEMORY[addr];
+    SET_Z(ACCUMULATOR == 0);
+    SET_N((ACCUMULATOR >> 7) & 1);
+}
 
-// +10  BPL     BMI     BVC     BVS     BCC     BCS     BNE     BEQ     Relative
-// +11  ORA     AND     EOR     ADC     STA     LDA     CMP     SBC     (indir),y
-// +12   t       t       t       t       t       t       t       t         ?
-// +13  SLO*    RLA*    SRE*    RRA*    SHA**   LAX*    DCP*    ISB*    (indir),y
-// +14  NOP*    NOP*    NOP*    NOP*    STY     LDY     NOP*    NOP*    Zeropage,x
-// +15  ORA     AND     EOR     ADC     STA     LDA     CMP     SBC     Zeropage,x
-// +16  ASL     ROL     LSR     ROR     STX  y) LDX  y) DEC     INC     Zeropage,x
-// +17  SLO*    RLA*    SRE*    RRA*    SAX* y) LAX* y) DCP*    ISB*    Zeropage,x
+void ASL(uint16_t addr) {
+    SET_C((MEMORY[addr] >> 7) & 1);
+    MEMORY[addr] = MEMORY[addr] << 1;
+    SET_Z(MEMORY[addr] == 0);
+    SET_N((MEMORY[addr] >> 7) & 1);
+}
 
-// +18  CLC     SEC     CLI     SEI     TYA     CLV     CLD     SED     Implied
-// +19  ORA     AND     EOR     ADC     STA     LDA     CMP     SBC     Absolute,y
-// +1a  NOP*    NOP*    NOP*    NOP*    TXS     TSX     NOP*    NOP*    Implied
-// +1b  SLO*    RLA*    SRE*    RRA*    SHS**   LAS**   DCP*    ISB*    Absolute,y
-// +1c  NOP*    NOP*    NOP*    NOP*    SHY**   LDY     NOP*    NOP*    Absolute,x
-// +1d  ORA     AND     EOR     ADC     STA     LDA     CMP     SBC     Absolute,x
-// +1e  ASL     ROL     LSR     ROR     SHX**y) LDX  y) DEC     INC     Absolute,x
-// +1f  SLO*    RLA*    SRE*    RRA*    SHA**y) LAX* y) DCP*    ISB*    Absolute,x
+void BCC(uint16_t addr) {}
 
-// see above table
-uint16_t get_addr(uint8_t opcode) {
-    uint8_t lo5 = opcode & 0b00011111;
-    uint8_t hi3 = (opcode >> 5) & 0b00000111;
-    switch (lo5) {
-        case 0x00:
-            switch (hi3) {
-                case 0x1: return addr_abs();
-                case 0x0:
-                case 0x2:
-                case 0x3: return NULL;
-                case 0x4:
-                case 0x5:
-                case 0x6:
-                case 0x7: return ++PC;
-            }
-        case 0x02:
-        case 0x09:
-        case 0x0B: return ++PC; // Immediate
-        case 0x01:
-        case 0x03: return addr_indexed_indirect();
-        case 0x04:
-        case 0x05:
-        case 0x06:
-        case 0x07: return addr_zero_page();
-        case 0x08:
-        case 0x0A:
-        case 0x18:
-        case 0x1A: return NULL; // implied
-        case 0x0C:
-        case 0x0D:
-        case 0x0E:
-        case 0x0F: return addr_abs();
-        case 0x10: return addr_relative();
-        case 0x11:
-        case 0x13: return addr_indirect_indexed();
-        case 0x14:
-        case 0x15:
-        case 0x16:
-        case 0x17: return addr_zero_page_x();
-        case 0x19:
-        case 0x1B: return addr_abs_y();
-        case 0x1C:
-        case 0x1D:
-        case 0x1E:
-        case 0x1F: return addr_abs_x();
-        default:
-            break;
+void BCS(uint16_t addr) {
+    // TODO: fix this
+    if (GET_C()) {
+        PC += addr_relative(); // TODO: should it be addr-1?
     }
 }
 
-void run_instruction(uint8_t opcode) {
-    switch (opcode) {
-        case 0x69: { // ADC Immediate
-            ++PC;
-            uint8_t sign_a = ACCUMULATOR >> 7;
-            uint8_t sign_m = MEMORY[PC] >> 7;
-            SET_C(((uint_16)ACCUMULATOR + MEMORY[PC]) > (uint8_t)0xFF);
-            ACCUMULATOR += MEMORY[PC];
-            uint8_t sign_a_fin = ACCUMULATOR >> 7;
-            SET_Z(ACCUMULATOR == 0);
-            if (sign_a == sign_m) {
-                SET_V(sign_a_fin != sign_a);
-            }
-            SET_N(sign_a_fin & 1);
-            break;
-        }
-        case 0x65: { // ADC ZP
-            uint8_t addr = addr_zero_page();
-            uint8_t sign_a = ACCUMULATOR >> 7;
-            uint8_t sign_m = MEMORY[addr] >> 7;
-            SET_C(((uint_16)ACCUMULATOR + MEMORY[addr]) > (uint8_t)0xFF);
-            ACCUMULATOR += MEMORY[addr];
-            uint8_t sign_a_fin = ACCUMULATOR >> 7;
-            SET_Z(ACCUMULATOR == 0);
-            if (sign_a == sign_m) {
-                SET_V(sign_a_fin != sign_a);
-            }
-            SET_N(sign_a_fin & 1);
-            break;
-        }
-        case 0x75: { // ADC ZP,X
-            uint8_t addr = addr_zero_page_x();
-            uint8_t m_val = MEMORY[addr];
-            uint8_t sign_a = ACCUMULATOR >> 7;
-            uint8_t sign_m = m_val >> 7;
-            SET_C(((uint_16)ACCUMULATOR + m_val) > (uint8_t)0xFF);
-            ACCUMULATOR += m_val;
-            uint8_t sign_a_fin = ACCUMULATOR >> 7;
-            SET_Z(ACCUMULATOR == 0);
-            if (sign_a == sign_m) {
-                SET_V(sign_a_fin != sign_a);
-            }
-            SET_N(sign_a_fin & 1);
-            break;
-        }
-        case 0x6D: { // ADC Abs
-            uint16_t addr = addr_abs();
-            uint8_t m_val = MEMORY[addr];
-            uint8_t sign_a = ACCUMULATOR >> 7;
-            uint8_t sign_m = m_val >> 7;
-            SET_C(((uint_16)ACCUMULATOR + m_val) > (uint8_t)0xFF);
-            ACCUMULATOR += m_val;
-            uint8_t sign_a_fin = ACCUMULATOR >> 7;
-            SET_Z(ACCUMULATOR == 0);
-            if (sign_a == sign_m) {
-                SET_V(sign_a_fin != sign_a);
-            }
-            SET_N(sign_a_fin & 1);
-            break;
-        }
-        case 0x7D: { // ADC Abs,X
-            uint16_t addr = addr_abs_x();
-            uint8_t m_val = MEMORY[addr];
-            uint8_t sign_a = ACCUMULATOR >> 7;
-            uint8_t sign_m = m_val >> 7;
-            SET_C(((uint_16)ACCUMULATOR + m_val) > (uint8_t)0xFF);
-            ACCUMULATOR += m_val;
-            uint8_t sign_a_fin = ACCUMULATOR >> 7;
-            SET_Z(ACCUMULATOR == 0);
-            if (sign_a == sign_m) {
-                SET_V(sign_a_fin != sign_a);
-            }
-            SET_N(sign_a_fin & 1);
-            break;
-        }
-        case 0x79: { // ADC Abs,Y
-            uint16_t addr = addr_abs_y();
-            uint8_t m_val = MEMORY[addr];
-            uint8_t sign_a = ACCUMULATOR >> 7;
-            uint8_t sign_m = m_val >> 7;
-            SET_C(((uint_16)ACCUMULATOR + m_val) > (uint8_t)0xFF);
-            ACCUMULATOR += m_val;
-            uint8_t sign_a_fin = ACCUMULATOR >> 7;
-            SET_Z(ACCUMULATOR == 0);
-            if (sign_a == sign_m) {
-                SET_V(sign_a_fin != sign_a);
-            }
-            SET_N(sign_a_fin & 1);
-            break;
-        }
-        case 0x61: { // ADC (Ind,X)
-            uint16_t addr = addr_indexed_indirect();
-            uint8_t m_val = MEMORY[addr];
-            uint8_t sign_a = ACCUMULATOR >> 7;
-            uint8_t sign_m = m_val >> 7;
-            SET_C(((uint_16)ACCUMULATOR + m_val) > (uint8_t)0xFF);
-            ACCUMULATOR += m_val;
-            uint8_t sign_a_fin = ACCUMULATOR >> 7;
-            SET_Z(ACCUMULATOR == 0);
-            if (sign_a == sign_m) {
-                SET_V(sign_a_fin != sign_a);
-            }
-            SET_N(sign_a_fin & 1);
-            break;
-        }
-        case 0x71: { // ADC (Ind),Y
-            uint16_t addr = addr_indirect_indexed();
-            uint8_t m_val = MEMORY[addr];
-            uint8_t sign_a = ACCUMULATOR >> 7;
-            uint8_t sign_m = m_val >> 7;
-            SET_C(((uint_16)ACCUMULATOR + m_val) > (uint8_t)0xFF);
-            ACCUMULATOR += m_val;
-            uint8_t sign_a_fin = ACCUMULATOR >> 7;
-            SET_Z(ACCUMULATOR == 0);
-            if (sign_a == sign_m) {
-                SET_V(sign_a_fin != sign_a);
-            }
-            SET_N(sign_a_fin & 1);
-            break;
-        }
-        case 0x29: { // AND Immediate
-            ++PC;
-            ACCUMULATOR &= MEMORY[PC];
-            SET_Z(ACCUMULATOR == 0);
-            SET_N((ACCUMULATOR >> 7) & 1);
-            break;
-        }
-        case 0x25: { // AND ZP
-            uint8_t addr = addr_zero_page();
-            ACCUMULATOR &= MEMORY[addr];
-            SET_Z(ACCUMULATOR == 0);
-            SET_N((ACCUMULATOR >> 7) & 1);
-            break;
-        }
-        case 0x35: { // AND ZP,X
-            uint8_t addr = addr_zero_page_x();
-            ACCUMULATOR &= MEMORY[addr];
-            SET_Z(ACCUMULATOR == 0);
-            SET_N((ACCUMULATOR >> 7) & 1);
-            break;
-        }
-        case 0x2D: { // AND Abs
-            uint16_t addr = addr_abs();
-            ACCUMULATOR &= MEMORY[addr];
-            SET_Z(ACCUMULATOR == 0);
-            SET_N((ACCUMULATOR >> 7) & 1);
-            break;
-        }
-        case 0x3D: { // AND Abs,X
-            uint16_t addr = addr_abs_x();
-            ACCUMULATOR &= MEMORY[addr];
-            SET_Z(ACCUMULATOR == 0);
-            SET_N((ACCUMULATOR >> 7) & 1);
-            break;
-        }
-        case 0x39: { // AND Abs,Y
-            uint16_t addr = addr_abs_y();
-            ACCUMULATOR &= MEMORY[addr];
-            SET_Z(ACCUMULATOR == 0);
-            SET_N((ACCUMULATOR >> 7) & 1);
-            break;
-        }
-        case 0x21: { // AND (Ind,X)
-            uint16_t addr = addr_indexed_indirect();
-            ACCUMULATOR &= MEMORY[addr];
-            SET_Z(ACCUMULATOR == 0);
-            SET_N((ACCUMULATOR >> 7) & 1);
-            break;
-        }
-        case 0x31: { // AND (Ind),Y
-            uint16_t addr = addr_indirect_indexed();
-            ACCUMULATOR &= MEMORY[addr];
-            SET_Z(ACCUMULATOR == 0);
-            SET_N((ACCUMULATOR >> 7) & 1);
-            break;
-        }
-        case 0x0A: { // ASL A
-            SET_C((ACCUMULATOR >> 7) & 1);
-            ACCUMULATOR = ACCUMULATOR << 1;
-            SET_Z(ACCUMULATOR == 0);
-            SET_N((ACCUMULATOR >> 7) & 1);
-            break;
-        }
-        case 0x06: { // ASL ZP
-            uint8_t addr = addr_zero_page();
-            SET_C((MEMORY[addr] >> 7) & 1);
-            MEMORY[addr] = MEMORY[addr] << 1;
-            SET_Z(MEMORY[addr] == 0);
-            SET_N((MEMORY[addr] >> 7) & 1);
-            break;
-        }
-        case 0x16: { // ASL ZP,X
-            uint8_t addr = addr_zero_page_x();
-            SET_C((MEMORY[addr] >> 7) & 1);
-            MEMORY[addr] = MEMORY[addr] << 1;
-            SET_Z(MEMORY[addr] == 0);
-            SET_N((MEMORY[addr] >> 7) & 1);
-            break;
-        }
-        case 0x0E: { // ASL Abs
-            uint16_t addr = addr_abs();
-            SET_C((MEMORY[addr] >> 7) & 1);
-            MEMORY[addr] = MEMORY[addr] << 1;
-            SET_Z(MEMORY[addr] == 0);
-            SET_N((MEMORY[addr] >> 7) & 1);
-            break;
-        }
-        case 0x1E: { // ASL Abs,X
-            uint16_t addr = addr_abs_x();
-            SET_C((MEMORY[addr] >> 7) & 1);
-            MEMORY[addr] = MEMORY[addr] << 1;
-            SET_Z(MEMORY[addr] == 0);
-            SET_N((MEMORY[addr] >> 7) & 1);
-            break;
-        }
-        case 0xB0: { // BCS
-            if (GET_C()) {
-                PC += addr_relative(); // TODO: should it be addr-1?
-            }
-            break;
-        }
-        case 0xF0: { // BEQ
-            if (GET_Z()) {
-                PC += addr_relative(); // TODO: see BCS
-            }
-            break;
-        }
-        case 0x24: { // BIT ZP
-            uint8_t addr = addr_zero_page();
-            uint8_t tmp = MEMORY[addr] & ACCUMULATOR;
-            SET_Z(tmp == 0);
-            SET_V((tmp >> 6) & 1);
-            SET_N((tmp >> 7) & 1);
-            break;
-        }
-        case 0x2C: { // BIT Abs
-            uint16_t addr = addr_abs();
-            uint8_t tmp = MEMORY[addr] & ACCUMULATOR;
-            SET_Z(tmp == 0);
-            SET_V((tmp >> 6) & 1);
-            SET_N((tmp >> 7) & 1);
-            break;
-        }
-        case 0x30: { // BMI
-            if (GET_N()) {
-                PC += addr_relative(); // TODO: see BCS
-            }
-            break;
-        }
-        case 0xD0: { // BNE
-            if (!GET_Z()) {
-                PC += addr_relative(); // TODO: see BCS
-            }
-            break;
-        }
-        case 0x10: { // BPL
-            if (!GET_N()) {
-                PC += addr_relative(); // TODO: see BCS
-            }
-            break;
-        }
-        case 0x00: { // BRK
-            // TODO: not sure how to handle this rn
-            break;
-        }
-        case 0x50: { // BVC
-            if (!GET_V()) {
-                PC += addr_relative(); // TODO: see BCS
-            }
-            break;
-        }
-        case 0x70: { // BVS
-            if (GET_V()) {
-                PC += addr_relative(); // TODO: see BCS
-            }
-            break;
-        }
-        case 0x18: { //CLC
-            SET_C(0);
-            break;
-        }
-        case 0xD8: { //CLD
-            SET_D(0);
-            break;
-        }
-        case 0x58: { //CLI
-            SET_I(0);
-            break;
-        }
-        case 0xB8: { //CLV
-            SET_V(0);
-            break;
-        }
-        case 0xC9: { // CMP Imm
-            ++PC;
-            uint8_t val = MEMORY[PC];
-            SET_C(ACCUMULATOR >= val);
-            SET_Z(ACCUMULATOR == val);
-            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
-            break;
-        }
-        case 0xC5: { // CMP ZP
-            uint8_t val = MEMORY[addr_zero_page());
-            SET_C(ACCUMULATOR >= val);
-            SET_Z(ACCUMULATOR == val);
-            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
-            break;
-        }
-        case 0xD5: { // CMP ZP,X
-            uint8_t val = MEMORY[addr_zero_page_x());
-            SET_C(ACCUMULATOR >= val);
-            SET_Z(ACCUMULATOR == val);
-            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
-            break;
-        }
-        case 0xCD: { // CMP Abs
-            uint8_t val = MEMORY[addr_abs());
-            SET_C(ACCUMULATOR >= val);
-            SET_Z(ACCUMULATOR == val);
-            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
-            break;
-        }
-        case 0xDD: { // CMP Abs, X
-            uint8_t val = MEMORY[addr_abs_x());
-            SET_C(ACCUMULATOR >= val);
-            SET_Z(ACCUMULATOR == val);
-            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
-            break;
-        }
-        case 0xD9: { // CMP Abs, Y
-            uint8_t val = MEMORY[addr_abs_y());
-            SET_C(ACCUMULATOR >= val);
-            SET_Z(ACCUMULATOR == val);
-            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
-            break;
-        }
-        case 0xC1: { // CMP (Ind,X)
-            uint8_t val = MEMORY[addr_indexed_indirect());
-            SET_C(ACCUMULATOR >= val);
-            SET_Z(ACCUMULATOR == val);
-            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
-            break;
-        }
-        case 0xD1: { // CMP (Ind),Y
-            uint8_t val = MEMORY[addr_indirect_indexed());
-            SET_C(ACCUMULATOR >= val);
-            SET_Z(ACCUMULATOR == val);
-            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
-            break;
-        }
-        case 0xE0: { // CPX Imm
-            ++PC;
-            uint8_t val = MEMORY[PC];
-            SET_C(IND_REG_X >= val);
-            SET_Z(IND_REG_X == val);
-            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
-            break;
-        }
-        case 0xE4: { // CPX ZP
-            uint8_t val = MEMORY[addr_zero_page()];
-            SET_C(IND_REG_X >= val);
-            SET_Z(IND_REG_X == val);
-            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
-            break;
-        }
-        case 0xEC: { // CPX Abs
-            uint8_t val = MEMORY[addr_abs()];
-            SET_C(IND_REG_X >= val);
-            SET_Z(IND_REG_X == val);
-            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
-            break;
-        }
-        case 0xC0: { // CPY Imm
-            ++PC;
-            uint8_t val = MEMORY[PC];
-            SET_C(IND_REG_Y >= val);
-            SET_Z(IND_REG_Y == val);
-            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
-            break;
-        }
-        case 0xC4: { // CPY ZP
-            uint8_t val = MEMORY[addr_zero_page()];
-            SET_C(IND_REG_Y >= val);
-            SET_Z(IND_REG_Y == val);
-            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
-            break;
-        }
-        case 0xCC: { // CPY Abs
-            uint8_t val = MEMORY[addr_abs()];
-            SET_C(IND_REG_Y >= val);
-            SET_Z(IND_REG_Y == val);
-            SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
-            break;
-        }
-        case 0xC6: { // DEC ZP
-            uint8_t addr = addr_zero_page();
-            MEMORY[addr] -= 1; // TODO: what should happen at 0?
-            uint8_t val = MEMORY[addr];
-            SET_Z(val == 0); // TODO: find out if Z should be unset too or just set on zero
-            SET_N(IS_NEG(val));
-            break;
-        }
-        case 0xD6: { // DEC ZP,X
-            uint8_t addr = addr_zero_page_x();
-            MEMORY[addr] -= 1; // TODO: what should happen at 0?
-            uint8_t val = MEMORY[addr];
-            SET_Z(val == 0); // TODO: find out if Z should be unset too or just set on zero
-            SET_N(IS_NEG(val));
-            break;
-        }
-        case 0xCE: { // DEC Abs
-            uint16_t addr = addr_abs();
-            MEMORY[addr] -= 1; // TODO: what should happen at 0?
-            uint8_t val = MEMORY[addr];
-            SET_Z(val == 0); // TODO: find out if Z should be unset too or just set on zero
-            SET_N(IS_NEG(val));
-            break;
-        }
-        case 0xDE: { // DEX Abs,X
-            uint16_t addr = addr_abs_x();
-            MEMORY[addr] -= 1; // TODO: what should happen at 0?
-            uint8_t val = MEMORY[addr];
-            SET_Z(val == 0); // TODO: find out if Z should be unset too or just set on zero
-            SET_N(IS_NEG(val));
-            break;
-        }
-        case 0xCA: { // DEX
-            --IND_REG_X;
-            SET_Z(IND_REG_X == 0); // TODO: find out if Z should be unset too or just set on zero
-            SET_N(IS_NEG(IND_REG_X));
-            break;
-        }
-        case 0x88: { // DEY
-            --IND_REG_Y;
-            SET_Z(IND_REG_Y == 0);
-            SET_N(IS_NEG(IND_REG_Y));
-            break;
-        }
-        case 0x49: { // EOR
-            ++PC;
-            uint8_t val = MEMORY[PC];
-            ACCUMULATOR = ACCUMULATOR ^ val;
-            SET_Z(A == 0);
-            SET_N(IS_NEG(ACCUMULATOR));
-            break;
-        }
-        case 0x45: { // EOR ZP
-            uint8_t val == MEMORY[addr_zero_page()];
-            ACCUMULATOR = ACCUMULATOR ^ val;
-            SET_Z(A == 0);
-            SET_N(IS_NEG(ACCUMULATOR));
-            break;
-        }
-        case 0x55: { // EOR ZP,X
-            uint8_t val == MEMORY[addr_zero_page_x()];
-            ACCUMULATOR = ACCUMULATOR ^ val;
-            SET_Z(A == 0);
-            SET_N(IS_NEG(ACCUMULATOR));
-            break;
-        }
-        case 0x4D: { // EOR Abs
-            uint8_t val == MEMORY[addr_abs()];
-            ACCUMULATOR = ACCUMULATOR ^ val;
-            SET_Z(A == 0);
-            SET_N(IS_NEG(ACCUMULATOR));
-            break;
-        }
-        case 0x5D: { // EOR Abs,X
-            uint8_t val == MEMORY[addr_abs_x()];
-            ACCUMULATOR = ACCUMULATOR ^ val;
-            SET_Z(A == 0);
-            SET_N(IS_NEG(ACCUMULATOR));
-            break;
-        }
-        case 0x59: { // EOR Abs,Y
-            uint8_t val == MEMORY[addr_abs_y()];
-            ACCUMULATOR = ACCUMULATOR ^ val;
-            SET_Z(A == 0);
-            SET_N(IS_NEG(ACCUMULATOR));
-            break;
-        }
-        case 0x41: { // EOR (Ind,X)
-            uint8_t val == MEMORY[addr_indexed_indirect()];
-            ACCUMULATOR = ACCUMULATOR ^ val;
-            SET_Z(A == 0);
-            SET_N(IS_NEG(ACCUMULATOR));
-            break;
-        }
-        case 0x51: { // EOR (Ind),Y
-            uint8_t val == MEMORY[addr_indirect_indexed()];
-            ACCUMULATOR = ACCUMULATOR ^ val;
-            SET_Z(A == 0);
-            SET_N(IS_NEG(ACCUMULATOR));
-            break;
-        }
-        case 0xE8: { // INX
-            ++IND_REG_X;
-            SET_Z(IND_REG_X == 0);
-            SET_N(IS_NEG(IND_REG_X));
-            break;
-        }
-        case 0xC8: { // INY
-            ++IND_REG_Y;
-            SET_Z(IND_REG_Y == 0);
-            SET_N(IS_NEG(IND_REG_Y));
-            break;
-        }
-        case 0x20: { //JSR
-            uint16_t addr = addr_abs();
-            STACK_POINTER -= 2;
-            MEMORY[STACK_POINTER + 2] = (PC & 0xFF00) >> 8;
-            MEMORY[STACK_POINTER + 1] = PC & 0xFF;
-            PC = addr;
-            break;
-        }
-        case 0xA9: { // LDA Imm
-            ++PC;
-            ACCUMULATOR = MEMORY[PC];
-            SET_Z(ACCUMULATOR == 0);
-            SET_N(IS_NEG(ACCUMULATOR));
-            break;
-        }
-        case 0xA5: { // LDA ZP
-            uint8_t addr = addr_zero_page();
-            ACCUMULATOR = MEMORY[addr];
-            SET_Z(ACCUMULATOR == 0);
-            SET_N(IS_NEG(ACCUMULATOR));
-            break;
-        }
-        case 0xB5: { // LDA ZPX
-            ++PC;
-            uint8_t addr = MEMORY[PC];
-            ACCUMULATOR = MEMORY[addr] + IND_REG_X;
-            SET_Z(ACCUMULATOR == 0);
-            SET_N(IS_NEG(ACCUMULATOR));
-            break;
-        }
-        case 0xAD: { // LDA Abs
-            uint16_t addr = addr_abs();
-            ACCUMULATOR = MEMORY[addr];
-            SET_Z(ACCUMULATOR == 0);
-            SET_N(IS_NEG(ACCUMULATOR));
-            break;
-        }
-        case 0xBD: { // LDA AbsX
-            uint16_t addr = addr_abs_x();
-            ACCUMULATOR = MEMORY[addr];
-            SET_Z(ACCUMULATOR == 0);
-            SET_N(IS_NEG(ACCUMULATOR));
-            break;
-        }
-        case 0xB9: { // LDA AbsY
-            uint16_t addr = addr_abs_y();
-            ACCUMULATOR = MEMORY[addr];
-            SET_Z(ACCUMULATOR == 0);
-            SET_N(IS_NEG(ACCUMULATOR));
-            break;
-        }
-        case 0xA1: { // LDA (Ind,X)
-            uint16_t addr = addr_indexed_indirect();
-            ACCUMULATOR = MEMORY[addr];
-            SET_Z(ACCUMULATOR == 0);
-            SET_N(IS_NEG(ACCUMULATOR));
-            break;
-        }
-        case 0xB1: { // LDA (Ind),Y
-            uint16_t addr = addr_indirect_indexed();
-            ACCUMULATOR = MEMORY[addr];
-            SET_Z(ACCUMULATOR == 0);
-            SET_N(IS_NEG(ACCUMULATOR));
-            break;
-        }
-        case 0x38: { // SEC
-            SET_C(1);
-            break;
-        }
-        case 0xF8: { // SED
-            SET_D(1);
-            break;
-        }
-        case 0x78: { // SEI
-            SET_I(1);
-            break;
-        }
-        case 0xAA: { // TAX
-            IND_REG_X = ACCUMULATOR;
-            SET_Z(IND_REG_X == 0);
-            SET_N(IS_NEG(IND_REG_X));
-            break;
-        }
-        case 0xA8: { // TAY
-            IND_REG_Y = ACCUMULATOR;
-            SET_Z(IND_REG_Y == 0);
-            SET_N(IS_NEG(IND_REG_Y));
-            break;
-        }
-        case 0xBA: { // TSX
-            IND_REG_X = STACK_POINTER;
-            SET_Z(IND_REG_X == 0);
-            SET_N(IS_NEG(IND_REG_X));
-            break;
-        }
-        case 0x8A: { // TXA
-            ACCUMULATOR = IND_REG_X;
-            SET_Z(ACCUMULATOR == 0);
-            SET_N(IS_NEG(ACCUMULATOR));
-            break;
-        }
-        case 0x9A: { // TXS
-            STACK_POINTER = IND_REG_X;
-            break;
-        }
-        case 0x98: { // TYA
-            ACCUMULATOR = IND_REG_Y;
-            SET_Z(ACCUMULATOR == 0);
-            SET_N(IS_NEG(ACCUMULATOR));
-            break;
-        }
-        case 0xEA: { // NOP
-            break;
-        }
+void BEQ(uint16_t addr) {
+    // TODO: fix this
+    if (GET_Z()) {
+        PC += addr_relative(); // TODO: see BCS
     }
-    ++PC;
+}
+
+void BIT(uint16_t addr) {
+    uint8_t tmp = MEMORY[addr] & ACCUMULATOR;
+    SET_Z(tmp == 0);
+    SET_V((tmp >> 6) & 1);
+    SET_N((tmp >> 7) & 1);
+}
+
+void BMI(uint16_t addr) {
+    // TODO: fix this
+    if (GET_N()) {
+        PC += addr_relative(); // TODO: see BCS
+    }
+}
+
+void BNE(uint16_t addr) {
+    // TODO: fix this
+    if (!GET_Z()) {
+        PC += addr_relative(); // TODO: see BCS
+    }
+}
+
+void BPL(uint16_t addr) {
+    // TODO: fix this
+    if (!GET_N()) {
+        PC += addr_relative(); // TODO: see BCS
+    }
+}
+
+void BRK(uint16_t addr) {}
+
+void BVC(uint16_t addr) {
+    // TODO: fix this
+    if (!GET_V()) {
+        PC += addr_relative(); // TODO: see BCS
+    }
+}
+
+void BVS(uint16_t addr) {
+    // TODO: fix this
+    if (GET_V()) {
+        PC += addr_relative(); // TODO: see BCS
+    }
+}
+
+void CLC(uint16_t addr) {
+    SET_C(0);
+}
+
+void CLD(uint16_t addr) {
+    SET_D(0);
+}
+
+void CLI(uint16_t addr) {
+    SET_I(0);
+}
+
+void CLV(uint16_t addr) {
+    SET_V(0);
+}
+
+void CMP(uint16_t addr) {
+    uint8_t val = MEMORY[addr];
+    SET_C(ACCUMULATOR >= val);
+    SET_Z(ACCUMULATOR == val);
+    SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
+}
+
+void CPX(uint16_t addr) {
+    uint8_t val = MEMORY[addr];
+    SET_C(IND_REG_X >= val);
+    SET_Z(IND_REG_X == val);
+    SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
+}
+
+void CPY(uint16_t addr) {
+    uint8_t val = MEMORY[addr];
+    SET_C(IND_REG_Y >= val);
+    SET_Z(IND_REG_Y == val);
+    SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
+}
+
+void DEC(uint16_t addr) {
+    MEMORY[addr] -= 1; // TODO: what should happen at 0?
+    uint8_t val = MEMORY[addr];
+    SET_Z(val == 0); // TODO: find out if Z should be unset too or just set on zero
+    SET_N(IS_NEG(val));
+}
+
+void DEX(uint16_t addr) {
+    --IND_REG_X;
+    SET_Z(IND_REG_X == 0); // TODO: find out if Z should be unset too or just set on zero
+    SET_N(IS_NEG(IND_REG_X));
+}
+
+void DEY(uint16_t addr) {
+    --IND_REG_Y;
+    SET_Z(IND_REG_Y == 0);
+    SET_N(IS_NEG(IND_REG_Y));
+}
+
+void EOR(uint16_t addr) {
+    uint8_t val = MEMORY[addr];
+    ACCUMULATOR = ACCUMULATOR ^ val;
+    SET_Z(A == 0);
+    SET_N(IS_NEG(ACCUMULATOR));
+}
+
+void INC(uint16_t addr) {}
+
+void INX(uint16_t addr) {
+    ++IND_REG_X;
+    SET_Z(IND_REG_X == 0);
+    SET_N(IS_NEG(IND_REG_X));
+}
+
+void INY(uint16_t addr) {
+    ++IND_REG_Y;
+    SET_Z(IND_REG_Y == 0);
+    SET_N(IS_NEG(IND_REG_Y));
+}
+
+void JMP(uint16_t addr) {}
+
+void JSR(uint16_t addr)
+    STACK_POINTER -= 2;
+    MEMORY[STACK_POINTER + 2] = (PC & 0xFF00) >> 8;
+    MEMORY[STACK_POINTER + 1] = PC & 0xFF;
+    PC = addr;
+}
+
+void LDA(uint16_t addr) {
+    ACCUMULATOR = MEMORY[addr];
+    SET_Z(ACCUMULATOR == 0);
+    SET_N(IS_NEG(ACCUMULATOR));
+}
+
+void LDX(uint16_t addr) {}
+
+void LDY(uint16_t addr) {}
+
+void LSR(uint16_t addr) {}
+
+void NOP(uint16_t addr) {}
+
+void ORA(uint16_t addr) {}
+
+void PHA(uint16_t addr) {}
+
+void PHP(uint16_t addr) {}
+
+void PLA(uint16_t addr) {}
+
+void PLP(uint16_t addr) {}
+
+void ROL(uint16_t addr) {}
+
+void ROR(uint16_t addr) {}
+
+void RTI(uint16_t addr) {}
+
+void RTS(uint16_t addr) {}
+
+void SBC(uint16_t addr) {}
+
+void SEC(uint16_t addr) {
+    SET_C(1);
+}
+
+void SED(uint16_t addr) {
+    SET_D(1);
+}
+
+void SEI(uint16_t addr) {
+    SET_I(1);
+}
+
+void STA(uint16_t addr) {}
+
+void STX(uint16_t addr) {}
+
+void STY(uint16_t addr) {}
+
+void TAX(uint16_t addr) {
+    IND_REG_X = ACCUMULATOR;
+    SET_Z(IND_REG_X == 0);
+    SET_N(IS_NEG(IND_REG_X));
+}
+
+void TAY(uint16_t addr) {
+    IND_REG_Y = ACCUMULATOR;
+    SET_Z(IND_REG_Y == 0);
+    SET_N(IS_NEG(IND_REG_Y));
+}
+
+void TSX(uint16_t addr) {
+    IND_REG_X = STACK_POINTER;
+    SET_Z(IND_REG_X == 0);
+    SET_N(IS_NEG(IND_REG_X));
+}
+
+void TXA(uint16_t addr) {
+    ACCUMULATOR = IND_REG_X;
+    SET_Z(ACCUMULATOR == 0);
+    SET_N(IS_NEG(ACCUMULATOR));
+}
+
+void TXS(uint16_t addr) {
+    STACK_POINTER = IND_REG_X;
+}
+
+void TYA(uint16_t addr) {
+    ACCUMULATOR = IND_REG_Y;
+    SET_Z(ACCUMULATOR == 0);
+    SET_N(IS_NEG(ACCUMULATOR));
+}
+
+void run_instruction(uint8_t opcode) {
+    uint16_t addr;
+    switch (opcode) {
+        case 0x69: addr = addr_immediate();        ADC(addr); break;
+        case 0x65: addr = addr_zero_page();        ADC(addr); break;
+        case 0x75: addr = addr_zero_page_x();      ADC(addr); break;
+        case 0x6D: addr = addr_abs();              ADC(addr); break;
+        case 0x7D: addr = addr_abs_x();            ADC(addr); break;
+        case 0x79: addr = addr_abs_y();            ADC(addr); break;
+        case 0x61: addr = addr_indexed_indirect(); ADC(addr); break;
+        case 0x71: addr = addr_indirect_indexed(); ADC(addr); break;
+        case 0x29: addr = addr_immediate();        AND(addr); break;
+        case 0x25: addr = addr_zero_page();        AND(addr); break;
+        case 0x35: addr = addr_zero_page_x();      AND(addr); break;
+        case 0x2D: addr = addr_abs();              AND(addr); break;
+        case 0x3D: addr = addr_abs_x();            AND(addr); break;
+        case 0x39: addr = addr_abs_y();            AND(addr); break;
+        case 0x21: addr = addr_indexed_indirect(); AND(addr); break;
+        case 0x31: addr = addr_indirect_indexed(); AND(addr); break;
+        case 0x0A: addr = addr_accumulator();      ASL(addr); break;
+        case 0x06: addr = addr_zero_page();        ASL(addr); break;
+        case 0x16: addr = addr_zero_page_x();      ASL(addr); break;
+        case 0x0E: addr = addr_abs();              ASL(addr); break;
+        case 0x1E: addr = addr_abs_x();            ASL(addr); break;
+        case 0x90: addr = addr_relative();         BCC(addr); break;
+        case 0x80: addr = addr_relative();         BCS(addr); break;
+        case 0xF0: addr = addr_relative();         BEQ(addr); break;
+        case 0x24: addr = addr_zero_page();        BIT(addr); break;
+        case 0x2C: addr = addr_abs();              BIT(addr); break;
+        case 0x30: addr = addr_relative();         BMI(addr); break;
+        case 0xD0: addr = addr_relative();         BNE(addr); break;
+        case 0x10: addr = addr_relative();         BPL(addr); break;
+        case 0x00: addr = addr_implied();          BRK(addr); break;
+        case 0x50: addr = addr_relative();         BVC(addr); break;
+        case 0x70: addr = addr_relative();         BVS(addr); break;
+        case 0x18: addr = addr_implied();          CLC(addr); break;
+        case 0xD8: addr = addr_implied();          CLD(addr); break;
+        case 0x58: addr = addr_implied();          CLI(addr); break;
+        case 0xB8: addr = addr_implied();          CLV(addr); break;
+        case 0xC9: addr = addr_immediate();        CMP(addr); break;
+        case 0xC5: addr = addr_zero_page();        CMP(addr); break;
+        case 0xD5: addr = addr_zero_page_x();      CMP(addr); break;
+        case 0xCD: addr = addr_abs();              CMP(addr); break;
+        case 0xDD: addr = addr_abs_x();            CMP(addr); break;
+        case 0xD9: addr = addr_abs_y();            CMP(addr); break;
+        case 0xC1: addr = addr_indexed_indirect(); CMP(addr); break;
+        case 0xD1: addr = addr_indirect_indexed(); CMP(addr); break;
+        case 0xE0: addr = addr_immediate();        CPX(addr); break;
+        case 0xE4: addr = addr_zero_page();        CPX(addr); break;
+        case 0xEC: addr = addr_abs();              CPX(addr); break;
+        case 0xC0: addr = addr_immediate();        CPY(addr); break;
+        case 0xC4: addr = addr_zero_page();        CPY(addr); break;
+        case 0xCC: addr = addr_abs();              CPY(addr); break;
+        case 0xC6: addr = addr_zero_page();        DEC(addr); break;
+        case 0xD6: addr = addr_zero_page_x();      DEC(addr); break;
+        case 0xCE: addr = addr_abs();              DEC(addr); break;
+        case 0xDE: addr = addr_abs_x();            DEC(addr); break;
+        case 0xCA: addr = addr_implied();          DEX(addr); break;
+        case 0x88: addr = addr_implied();          DEY(addr); break;
+        case 0x49: addr = addr_immediate();        EOR(addr); break;
+        case 0x45: addr = addr_zero_page();        EOR(addr); break;
+        case 0x55: addr = addr_zero_page_x();      EOR(addr); break;
+        case 0x4D: addr = addr_abs();              EOR(addr); break;
+        case 0x5D: addr = addr_abs_x();            EOR(addr); break;
+        case 0x59: addr = addr_abs_y();            EOR(addr); break;
+        case 0x41: addr = addr_indexed_indirect(); EOR(addr); break;
+        case 0x51: addr = addr_indirect_indexed(); EOR(addr); break;
+        case 0xE6: addr = addr_zero_page();        INC(addr); break;
+        case 0xF6: addr = addr_zero_page_x();      INC(addr); break;
+        case 0xEE: addr = addr_abs();              INC(addr); break;
+        case 0xFE: addr = addr_abs_x();            INC(addr); break;
+        case 0xE8: addr = addr_implied();          INX(addr); break;
+        case 0xC8: addr = addr_implied();          INY(addr); break;
+        case 0x4C: addr = addr_abs();              JMP(addr); break;
+        case 0x6C: addr = 0; /* indirect */        JMP(addr); break;
+        case 0x20: addr = addr_abs();              JSR(addr); break;
+        case 0xA9: addr = addr_immediate();        LDA(addr); break;
+        case 0xA5: addr = addr_zero_page();        LDA(addr); break;
+        case 0xB5: addr = addr_zero_page_x();      LDA(addr); break;
+        case 0xAD: addr = addr_abs();              LDA(addr); break;
+        case 0xBD: addr = addr_abs_x();            LDA(addr); break;
+        case 0xB9: addr = addr_abs_y();            LDA(addr); break;
+        case 0xA1: addr = addr_indexed_indirect(); LDA(addr); break;
+        case 0xB1: addr = addr_indirect_indexed(); LDA(addr); break;
+        case 0xA2: addr = addr_immediate();        LDX(addr); break;
+        case 0xA6: addr = addr_zero_page();        LDX(addr); break;
+        case 0xB6: addr = addr_zero_page_y();      LDX(addr); break;
+        case 0xAE: addr = addr_abs();              LDX(addr); break;
+        case 0xBE: addr = addr_abs_y();            LDX(addr); break;
+        case 0xA0: addr = addr_immediate();        LDY(addr); break;
+        case 0xA4: addr = addr_zero_page();        LDY(addr); break;
+        case 0xB4: addr = addr_zero_page_x();      LDY(addr); break;
+        case 0xAC: addr = addr_abs();              LDY(addr); break;
+        case 0xBC: addr = addr_abs_x();            LDY(addr); break;
+        case 0x4A: addr = addr_accumulator();      LSR(addr); break;
+        case 0x46: addr = addr_zero_page();        LSR(addr); break;
+        case 0x56: addr = addr_zero_page_x();      LSR(addr); break;
+        case 0x4E: addr = addr_abs();              LSR(addr); break;
+        case 0x5E: addr = addr_abs_x();            LSR(addr); break;
+        case 0xEA: addr = addr_implied();          NOP(addr); break;
+        case 0x09: addr = addr_immediate();        ORA(addr); break;
+        case 0x05: addr = addr_zero_page();        ORA(addr); break;
+        case 0x15: addr = addr_zero_page_x();      ORA(addr); break;
+        case 0x0D: addr = addr_abs();              ORA(addr); break;
+        case 0x1D: addr = addr_abs_x();            ORA(addr); break;
+        case 0x19: addr = addr_abs_y();            ORA(addr); break;
+        case 0x01: addr = addr_indexed_indirect(); ORA(addr); break;
+        case 0x11: addr = addr_indirect_indexed(); ORA(addr); break;
+        case 0x48: addr = addr_implied();          PHA(addr); break;
+        case 0x08: addr = addr_implied();          PHP(addr); break;
+        case 0x68: addr = addr_implied();          PLA(addr); break;
+        case 0x28: addr = addr_implied();          PLP(addr); break;
+        case 0x2A: addr = addr_accumulator();      ROL(addr); break;
+        case 0x26: addr = addr_zero_page();        ROL(addr); break;
+        case 0x36: addr = addr_zero_page_x();      ROL(addr); break;
+        case 0x2E: addr = addr_abs();              ROL(addr); break;
+        case 0x3E: addr = addr_abs_x();            ROL(addr); break;
+        case 0x6A: addr = addr_accumulator();      ROR(addr); break;
+        case 0x66: addr = addr_zero_page();        ROR(addr); break;
+        case 0x76: addr = addr_zero_page_x();      ROR(addr); break;
+        case 0x6E: addr = addr_abs();              ROR(addr); break;
+        case 0x7E: addr = addr_abs_x();            ROR(addr); break;
+        case 0x40: addr = addr_implied();          RTI(addr); break;
+        case 0x60: addr = addr_implied();          RTS(addr); break;
+        case 0xE9: addr = addr_immediate();        SBC(addr); break;
+        case 0xE5: addr = addr_zero_page();        SBC(addr); break;
+        case 0xF5: addr = addr_zero_page_x();      SBC(addr); break;
+        case 0xED: addr = addr_abs();              SBC(addr); break;
+        case 0xFD: addr = addr_abs_x();            SBC(addr); break;
+        case 0xF9: addr = addr_abs_y();            SBC(addr); break;
+        case 0xE1: addr = addr_indexed_indirect(); SBC(addr); break;
+        case 0xF1: addr = addr_indirect_indexed(); SBC(addr); break;
+        case 0x38: addr = addr_implied();          SEC(addr); break;
+        case 0xF8: addr = addr_implied();          SED(addr); break;
+        case 0x78: addr = addr_implied();          SEI(addr); break;
+        case 0x85: addr = addr_zero_page();        STA(addr); break;
+        case 0x95: addr = addr_zero_page_x();      STA(addr); break;
+        case 0x8D: addr = addr_abs();              STA(addr); break;
+        case 0x9D: addr = addr_abs_x();            STA(addr); break;
+        case 0x99: addr = addr_abs_y();            STA(addr); break;
+        case 0x81: addr = addr_indexed_indirect(); STA(addr); break;
+        case 0x91: addr = addr_indirect_indexed(); STA(addr); break;
+        case 0x86: addr = addr_zero_page();        STA(addr); break;
+        case 0x96: addr = addr_zero_page_y();      STA(addr); break;
+        case 0x8E: addr = addr_abs();              STA(addr); break;
+        case 0x84: addr = addr_zero_page();        STY(addr); break;
+        case 0x94: addr = addr_zero_page_x();      STY(addr); break;
+        case 0x8C: addr = addr_abs();              STY(addr); break;
+        case 0xAA: addr = addr_implied();          TAX(addr); break;
+        case 0xA8: addr = addr_implied();          TAY(addr); break;
+        case 0xBA: addr = addr_implied();          TSX(addr); break;
+        case 0x8A: addr = addr_implied();          TXA(addr); break;
+        case 0x9A: addr = addr_implied();          TXS(addr); break;
+        case 0x98: addr = addr_implied();          TYA(addr); break;
+        default:
+            // note: illegal or undocumented opcode
+            // decide on whether or not we want to implement the undocumented ones
+            // not sure if any ROMS use those
+            break;
+    }
 }
 
 void reset() {
