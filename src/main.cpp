@@ -103,12 +103,13 @@ int8_t addr_relative() {
     return (int8_t)MEMORY[PC];
 }
 
-void ADC(uint16_t addr) {
-    uint8_t sign_a = ACCUMULATOR >> 7;
-    uint8_t sign_m = MEMORY[PC] >> 7;
-    SET_C(((uint_16)ACCUMULATOR + MEMORY[PC]) > (uint8_t)0xFF);
-    ACCUMULATOR += MEMORY[addr];
-    uint8_t sign_a_fin = ACCUMULATOR >> 7;
+
+void ADC(uint8_t* pt) {
+    uint8_t sign_a = (uint8_t)(ACCUMULATOR >> 7);
+    uint8_t sign_m = (uint8_t)(MEMORY[PC] >> 7);
+    SET_C((ACCUMULATOR + MEMORY[PC]) > 0xFFu);
+    ACCUMULATOR += *pt;
+    uint8_t sign_a_fin = (uint8_t)(ACCUMULATOR >> 7);
     SET_Z(ACCUMULATOR == 0);
     if (sign_a == sign_m) {
         SET_V(sign_a_fin != sign_a);
@@ -116,405 +117,406 @@ void ADC(uint16_t addr) {
     SET_N(sign_a_fin & 1);
 }
 
-void AND(uint16_t addr) {
-    ACCUMULATOR &= MEMORY[addr];
+void AND(uint8_t* pt) {
+    ACCUMULATOR &= *pt;
     SET_Z(ACCUMULATOR == 0);
     SET_N((ACCUMULATOR >> 7) & 1);
 }
 
-void ASL(uint16_t addr) {
-    SET_C((MEMORY[addr] >> 7) & 1);
-    MEMORY[addr] = MEMORY[addr] << 1;
-    SET_Z(MEMORY[addr] == 0);
-    SET_N((MEMORY[addr] >> 7) & 1);
+void ASL(uint8_t* pt) {
+    SET_C((*pt >> 7) & 1);
+    *pt = (uint8_t)(*pt << 1);
+    SET_Z(*pt == 0);
+    SET_N((*pt >> 7) & 1);
 }
 
-void BCC(uint16_t addr) {}
-
-void BCS(uint16_t addr) {
-    // TODO: fix this
-    if (GET_C()) {
-        PC += addr_relative(); // TODO: should it be addr-1?
-    }
+void BCC(int8_t offset) {
+    if (!GET_C()) PC += offset;
 }
 
-void BEQ(uint16_t addr) {
-    // TODO: fix this
-    if (GET_Z()) {
-        PC += addr_relative(); // TODO: see BCS
-    }
+void BCS(int8_t offset) {
+    if (GET_C()) PC += offset;
 }
 
-void BIT(uint16_t addr) {
-    uint8_t tmp = MEMORY[addr] & ACCUMULATOR;
+void BEQ(int8_t offset) {
+    if (GET_Z()) PC += offset;
+}
+
+void BIT(uint8_t* pt) {
+    uint8_t tmp = (uint8_t)(*pt & ACCUMULATOR);
     SET_Z(tmp == 0);
     SET_V((tmp >> 6) & 1);
     SET_N((tmp >> 7) & 1);
 }
 
-void BMI(uint16_t addr) {
-    // TODO: fix this
-    if (GET_N()) {
-        PC += addr_relative(); // TODO: see BCS
-    }
+void BMI(int8_t offset) {
+    if (GET_N()) PC += offset;
 }
 
-void BNE(uint16_t addr) {
-    // TODO: fix this
-    if (!GET_Z()) {
-        PC += addr_relative(); // TODO: see BCS
-    }
+void BNE(int8_t offset) {
+    if (!GET_Z()) PC += offset;
 }
 
-void BPL(uint16_t addr) {
-    // TODO: fix this
-    if (!GET_N()) {
-        PC += addr_relative(); // TODO: see BCS
-    }
+void BPL(int8_t offset) {
+    if (!GET_N()) PC += offset;
 }
 
-void BRK(uint16_t addr) {}
+void BRK() {}
 
-void BVC(uint16_t addr) {
-    // TODO: fix this
-    if (!GET_V()) {
-        PC += addr_relative(); // TODO: see BCS
-    }
+void BVC(int8_t offset) {
+    if (!GET_V()) PC += offset;
 }
 
-void BVS(uint16_t addr) {
-    // TODO: fix this
-    if (GET_V()) {
-        PC += addr_relative(); // TODO: see BCS
-    }
+void BVS(int8_t offset) {
+    if (GET_V()) PC += offset;
 }
 
-void CLC(uint16_t addr) {
+void CLC() {
     SET_C(0);
 }
 
-void CLD(uint16_t addr) {
+void CLD() {
     SET_D(0);
 }
 
-void CLI(uint16_t addr) {
+void CLI() {
     SET_I(0);
 }
 
-void CLV(uint16_t addr) {
+void CLV() {
     SET_V(0);
 }
 
-void CMP(uint16_t addr) {
-    uint8_t val = MEMORY[addr];
+void CMP(uint8_t* pt) {
+    uint8_t val = *pt;
     SET_C(ACCUMULATOR >= val);
     SET_Z(ACCUMULATOR == val);
     SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
 }
 
-void CPX(uint16_t addr) {
-    uint8_t val = MEMORY[addr];
+void CPX(uint8_t* pt) {
+    uint8_t val = *pt;
     SET_C(IND_REG_X >= val);
     SET_Z(IND_REG_X == val);
     SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
 }
 
-void CPY(uint16_t addr) {
-    uint8_t val = MEMORY[addr];
+void CPY(uint8_t* pt) {
+    uint8_t val = *pt;
     SET_C(IND_REG_Y >= val);
     SET_Z(IND_REG_Y == val);
     SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
 }
 
-void DEC(uint16_t addr) {
-    MEMORY[addr] -= 1; // TODO: what should happen at 0?
-    uint8_t val = MEMORY[addr];
+void DEC(uint8_t* pt) {
+    *pt -= 1; // TODO: what should happen at 0?
+    uint8_t val = *pt;
     SET_Z(val == 0); // TODO: find out if Z should be unset too or just set on zero
     SET_N(IS_NEG(val));
 }
 
-void DEX(uint16_t addr) {
+void DEX() {
     --IND_REG_X;
     SET_Z(IND_REG_X == 0); // TODO: find out if Z should be unset too or just set on zero
     SET_N(IS_NEG(IND_REG_X));
 }
 
-void DEY(uint16_t addr) {
+void DEY() {
     --IND_REG_Y;
     SET_Z(IND_REG_Y == 0);
     SET_N(IS_NEG(IND_REG_Y));
 }
 
-void EOR(uint16_t addr) {
-    uint8_t val = MEMORY[addr];
-    ACCUMULATOR = ACCUMULATOR ^ val;
-    SET_Z(A == 0);
+void EOR(uint8_t* pt) {
+    uint8_t val = *pt;
+    ACCUMULATOR = (uint8_t)(ACCUMULATOR ^ val);
+    SET_Z(ACCUMULATOR == 0);
     SET_N(IS_NEG(ACCUMULATOR));
 }
 
-void INC(uint16_t addr) {}
+void INC(uint8_t* pt) {
+    ++(*pt);
+    SET_Z(*pt == 0);
+    SET_N(IS_NEG(*pt));
+}
 
-void INX(uint16_t addr) {
+void INX() {
     ++IND_REG_X;
     SET_Z(IND_REG_X == 0);
     SET_N(IS_NEG(IND_REG_X));
 }
 
-void INY(uint16_t addr) {
+void INY() {
     ++IND_REG_Y;
     SET_Z(IND_REG_Y == 0);
     SET_N(IS_NEG(IND_REG_Y));
 }
 
-void JMP(uint16_t addr) {}
+void JMP(uint8_t* pt) {}
 
-void JSR(uint16_t addr)
+void JSR(uint8_t* pt) {
     STACK_POINTER -= 2;
-    MEMORY[STACK_POINTER + 2] = (PC & 0xFF00) >> 8;
-    MEMORY[STACK_POINTER + 1] = PC & 0xFF;
-    PC = addr;
+    MEMORY[STACK_POINTER + 2] = (uint8_t)((PC & 0xFF00) >> 8);
+    MEMORY[STACK_POINTER + 1] = (uint8_t)(PC & 0xFF);
+    // PC = addr;
+    // TODO: fix this
 }
 
-void LDA(uint16_t addr) {
-    ACCUMULATOR = MEMORY[addr];
+void LDA(uint8_t* pt) {
+    ACCUMULATOR = *pt;
     SET_Z(ACCUMULATOR == 0);
     SET_N(IS_NEG(ACCUMULATOR));
 }
 
-void LDX(uint16_t addr) {}
+void LDX(uint8_t* pt) {
+    IND_REG_X = *pt;
+    SET_Z(IND_REG_X);
+    SET_N(IS_NEG(IND_REG_X));
+}
 
-void LDY(uint16_t addr) {}
+void LDY(uint8_t* pt) {
+    IND_REG_Y = *pt;
+    SET_Z(IND_REG_Y);
+    SET_N(IS_NEG(IND_REG_Y));
+}
 
-void LSR(uint16_t addr) {}
+void LSR(uint8_t* pt) {
+    SET_C(*pt & 0x01);
+    *pt = *pt >> 1;
+    SET_Z(*pt == 0);
+    SET_N(false); // high bit is always 0 after shift
+}
 
-void NOP(uint16_t addr) {}
 
-void ORA(uint16_t addr) {}
+void NOP() {}
 
-void PHA(uint16_t addr) {}
+void ORA(uint8_t* pt) {}
 
-void PHP(uint16_t addr) {}
+void PHA() {}
 
-void PLA(uint16_t addr) {}
+void PHP() {}
 
-void PLP(uint16_t addr) {}
+void PLA() {}
 
-void ROL(uint16_t addr) {}
+void PLP() {}
 
-void ROR(uint16_t addr) {}
+void ROL(uint8_t* pt) {}
 
-void RTI(uint16_t addr) {}
+void ROR(uint8_t* pt) {}
 
-void RTS(uint16_t addr) {}
+void RTI() {}
 
-void SBC(uint16_t addr) {}
+void RTS() {}
 
-void SEC(uint16_t addr) {
+void SBC(uint8_t* pt) {}
+
+void SEC() {
     SET_C(1);
 }
 
-void SED(uint16_t addr) {
+void SED() {
     SET_D(1);
 }
 
-void SEI(uint16_t addr) {
+void SEI() {
     SET_I(1);
 }
 
-void STA(uint16_t addr) {}
+void STA(uint8_t* pt) {}
 
-void STX(uint16_t addr) {}
+void STX(uint8_t* pt) {}
 
-void STY(uint16_t addr) {}
+void STY(uint8_t* pt) {}
 
-void TAX(uint16_t addr) {
+void TAX() {
     IND_REG_X = ACCUMULATOR;
     SET_Z(IND_REG_X == 0);
     SET_N(IS_NEG(IND_REG_X));
 }
 
-void TAY(uint16_t addr) {
+void TAY() {
     IND_REG_Y = ACCUMULATOR;
     SET_Z(IND_REG_Y == 0);
     SET_N(IS_NEG(IND_REG_Y));
 }
 
-void TSX(uint16_t addr) {
+void TSX() {
     IND_REG_X = STACK_POINTER;
     SET_Z(IND_REG_X == 0);
     SET_N(IS_NEG(IND_REG_X));
 }
 
-void TXA(uint16_t addr) {
+void TXA() {
     ACCUMULATOR = IND_REG_X;
     SET_Z(ACCUMULATOR == 0);
     SET_N(IS_NEG(ACCUMULATOR));
 }
 
-void TXS(uint16_t addr) {
+void TXS() {
     STACK_POINTER = IND_REG_X;
 }
 
-void TYA(uint16_t addr) {
+void TYA() {
     ACCUMULATOR = IND_REG_Y;
     SET_Z(ACCUMULATOR == 0);
     SET_N(IS_NEG(ACCUMULATOR));
 }
 
 void run_instruction(uint8_t opcode) {
-    uint16_t addr;
+    uint8_t* pt;
+    int8_t rel_offset;
     switch (opcode) {
-        case 0x69: addr = addr_immediate();        ADC(addr); break;
-        case 0x65: addr = addr_zero_page();        ADC(addr); break;
-        case 0x75: addr = addr_zero_page_x();      ADC(addr); break;
-        case 0x6D: addr = addr_abs();              ADC(addr); break;
-        case 0x7D: addr = addr_abs_x();            ADC(addr); break;
-        case 0x79: addr = addr_abs_y();            ADC(addr); break;
-        case 0x61: addr = addr_indexed_indirect(); ADC(addr); break;
-        case 0x71: addr = addr_indirect_indexed(); ADC(addr); break;
-        case 0x29: addr = addr_immediate();        AND(addr); break;
-        case 0x25: addr = addr_zero_page();        AND(addr); break;
-        case 0x35: addr = addr_zero_page_x();      AND(addr); break;
-        case 0x2D: addr = addr_abs();              AND(addr); break;
-        case 0x3D: addr = addr_abs_x();            AND(addr); break;
-        case 0x39: addr = addr_abs_y();            AND(addr); break;
-        case 0x21: addr = addr_indexed_indirect(); AND(addr); break;
-        case 0x31: addr = addr_indirect_indexed(); AND(addr); break;
-        case 0x0A: addr = addr_accumulator();      ASL(addr); break;
-        case 0x06: addr = addr_zero_page();        ASL(addr); break;
-        case 0x16: addr = addr_zero_page_x();      ASL(addr); break;
-        case 0x0E: addr = addr_abs();              ASL(addr); break;
-        case 0x1E: addr = addr_abs_x();            ASL(addr); break;
-        case 0x90: addr = addr_relative();         BCC(addr); break;
-        case 0x80: addr = addr_relative();         BCS(addr); break;
-        case 0xF0: addr = addr_relative();         BEQ(addr); break;
-        case 0x24: addr = addr_zero_page();        BIT(addr); break;
-        case 0x2C: addr = addr_abs();              BIT(addr); break;
-        case 0x30: addr = addr_relative();         BMI(addr); break;
-        case 0xD0: addr = addr_relative();         BNE(addr); break;
-        case 0x10: addr = addr_relative();         BPL(addr); break;
-        case 0x00: addr = addr_implied();          BRK(addr); break;
-        case 0x50: addr = addr_relative();         BVC(addr); break;
-        case 0x70: addr = addr_relative();         BVS(addr); break;
-        case 0x18: addr = addr_implied();          CLC(addr); break;
-        case 0xD8: addr = addr_implied();          CLD(addr); break;
-        case 0x58: addr = addr_implied();          CLI(addr); break;
-        case 0xB8: addr = addr_implied();          CLV(addr); break;
-        case 0xC9: addr = addr_immediate();        CMP(addr); break;
-        case 0xC5: addr = addr_zero_page();        CMP(addr); break;
-        case 0xD5: addr = addr_zero_page_x();      CMP(addr); break;
-        case 0xCD: addr = addr_abs();              CMP(addr); break;
-        case 0xDD: addr = addr_abs_x();            CMP(addr); break;
-        case 0xD9: addr = addr_abs_y();            CMP(addr); break;
-        case 0xC1: addr = addr_indexed_indirect(); CMP(addr); break;
-        case 0xD1: addr = addr_indirect_indexed(); CMP(addr); break;
-        case 0xE0: addr = addr_immediate();        CPX(addr); break;
-        case 0xE4: addr = addr_zero_page();        CPX(addr); break;
-        case 0xEC: addr = addr_abs();              CPX(addr); break;
-        case 0xC0: addr = addr_immediate();        CPY(addr); break;
-        case 0xC4: addr = addr_zero_page();        CPY(addr); break;
-        case 0xCC: addr = addr_abs();              CPY(addr); break;
-        case 0xC6: addr = addr_zero_page();        DEC(addr); break;
-        case 0xD6: addr = addr_zero_page_x();      DEC(addr); break;
-        case 0xCE: addr = addr_abs();              DEC(addr); break;
-        case 0xDE: addr = addr_abs_x();            DEC(addr); break;
-        case 0xCA: addr = addr_implied();          DEX(addr); break;
-        case 0x88: addr = addr_implied();          DEY(addr); break;
-        case 0x49: addr = addr_immediate();        EOR(addr); break;
-        case 0x45: addr = addr_zero_page();        EOR(addr); break;
-        case 0x55: addr = addr_zero_page_x();      EOR(addr); break;
-        case 0x4D: addr = addr_abs();              EOR(addr); break;
-        case 0x5D: addr = addr_abs_x();            EOR(addr); break;
-        case 0x59: addr = addr_abs_y();            EOR(addr); break;
-        case 0x41: addr = addr_indexed_indirect(); EOR(addr); break;
-        case 0x51: addr = addr_indirect_indexed(); EOR(addr); break;
-        case 0xE6: addr = addr_zero_page();        INC(addr); break;
-        case 0xF6: addr = addr_zero_page_x();      INC(addr); break;
-        case 0xEE: addr = addr_abs();              INC(addr); break;
-        case 0xFE: addr = addr_abs_x();            INC(addr); break;
-        case 0xE8: addr = addr_implied();          INX(addr); break;
-        case 0xC8: addr = addr_implied();          INY(addr); break;
-        case 0x4C: addr = addr_abs();              JMP(addr); break;
-        case 0x6C: addr = 0; /* indirect */        JMP(addr); break;
-        case 0x20: addr = addr_abs();              JSR(addr); break;
-        case 0xA9: addr = addr_immediate();        LDA(addr); break;
-        case 0xA5: addr = addr_zero_page();        LDA(addr); break;
-        case 0xB5: addr = addr_zero_page_x();      LDA(addr); break;
-        case 0xAD: addr = addr_abs();              LDA(addr); break;
-        case 0xBD: addr = addr_abs_x();            LDA(addr); break;
-        case 0xB9: addr = addr_abs_y();            LDA(addr); break;
-        case 0xA1: addr = addr_indexed_indirect(); LDA(addr); break;
-        case 0xB1: addr = addr_indirect_indexed(); LDA(addr); break;
-        case 0xA2: addr = addr_immediate();        LDX(addr); break;
-        case 0xA6: addr = addr_zero_page();        LDX(addr); break;
-        case 0xB6: addr = addr_zero_page_y();      LDX(addr); break;
-        case 0xAE: addr = addr_abs();              LDX(addr); break;
-        case 0xBE: addr = addr_abs_y();            LDX(addr); break;
-        case 0xA0: addr = addr_immediate();        LDY(addr); break;
-        case 0xA4: addr = addr_zero_page();        LDY(addr); break;
-        case 0xB4: addr = addr_zero_page_x();      LDY(addr); break;
-        case 0xAC: addr = addr_abs();              LDY(addr); break;
-        case 0xBC: addr = addr_abs_x();            LDY(addr); break;
-        case 0x4A: addr = addr_accumulator();      LSR(addr); break;
-        case 0x46: addr = addr_zero_page();        LSR(addr); break;
-        case 0x56: addr = addr_zero_page_x();      LSR(addr); break;
-        case 0x4E: addr = addr_abs();              LSR(addr); break;
-        case 0x5E: addr = addr_abs_x();            LSR(addr); break;
-        case 0xEA: addr = addr_implied();          NOP(addr); break;
-        case 0x09: addr = addr_immediate();        ORA(addr); break;
-        case 0x05: addr = addr_zero_page();        ORA(addr); break;
-        case 0x15: addr = addr_zero_page_x();      ORA(addr); break;
-        case 0x0D: addr = addr_abs();              ORA(addr); break;
-        case 0x1D: addr = addr_abs_x();            ORA(addr); break;
-        case 0x19: addr = addr_abs_y();            ORA(addr); break;
-        case 0x01: addr = addr_indexed_indirect(); ORA(addr); break;
-        case 0x11: addr = addr_indirect_indexed(); ORA(addr); break;
-        case 0x48: addr = addr_implied();          PHA(addr); break;
-        case 0x08: addr = addr_implied();          PHP(addr); break;
-        case 0x68: addr = addr_implied();          PLA(addr); break;
-        case 0x28: addr = addr_implied();          PLP(addr); break;
-        case 0x2A: addr = addr_accumulator();      ROL(addr); break;
-        case 0x26: addr = addr_zero_page();        ROL(addr); break;
-        case 0x36: addr = addr_zero_page_x();      ROL(addr); break;
-        case 0x2E: addr = addr_abs();              ROL(addr); break;
-        case 0x3E: addr = addr_abs_x();            ROL(addr); break;
-        case 0x6A: addr = addr_accumulator();      ROR(addr); break;
-        case 0x66: addr = addr_zero_page();        ROR(addr); break;
-        case 0x76: addr = addr_zero_page_x();      ROR(addr); break;
-        case 0x6E: addr = addr_abs();              ROR(addr); break;
-        case 0x7E: addr = addr_abs_x();            ROR(addr); break;
-        case 0x40: addr = addr_implied();          RTI(addr); break;
-        case 0x60: addr = addr_implied();          RTS(addr); break;
-        case 0xE9: addr = addr_immediate();        SBC(addr); break;
-        case 0xE5: addr = addr_zero_page();        SBC(addr); break;
-        case 0xF5: addr = addr_zero_page_x();      SBC(addr); break;
-        case 0xED: addr = addr_abs();              SBC(addr); break;
-        case 0xFD: addr = addr_abs_x();            SBC(addr); break;
-        case 0xF9: addr = addr_abs_y();            SBC(addr); break;
-        case 0xE1: addr = addr_indexed_indirect(); SBC(addr); break;
-        case 0xF1: addr = addr_indirect_indexed(); SBC(addr); break;
-        case 0x38: addr = addr_implied();          SEC(addr); break;
-        case 0xF8: addr = addr_implied();          SED(addr); break;
-        case 0x78: addr = addr_implied();          SEI(addr); break;
-        case 0x85: addr = addr_zero_page();        STA(addr); break;
-        case 0x95: addr = addr_zero_page_x();      STA(addr); break;
-        case 0x8D: addr = addr_abs();              STA(addr); break;
-        case 0x9D: addr = addr_abs_x();            STA(addr); break;
-        case 0x99: addr = addr_abs_y();            STA(addr); break;
-        case 0x81: addr = addr_indexed_indirect(); STA(addr); break;
-        case 0x91: addr = addr_indirect_indexed(); STA(addr); break;
-        case 0x86: addr = addr_zero_page();        STA(addr); break;
-        case 0x96: addr = addr_zero_page_y();      STA(addr); break;
-        case 0x8E: addr = addr_abs();              STA(addr); break;
-        case 0x84: addr = addr_zero_page();        STY(addr); break;
-        case 0x94: addr = addr_zero_page_x();      STY(addr); break;
-        case 0x8C: addr = addr_abs();              STY(addr); break;
-        case 0xAA: addr = addr_implied();          TAX(addr); break;
-        case 0xA8: addr = addr_implied();          TAY(addr); break;
-        case 0xBA: addr = addr_implied();          TSX(addr); break;
-        case 0x8A: addr = addr_implied();          TXA(addr); break;
-        case 0x9A: addr = addr_implied();          TXS(addr); break;
-        case 0x98: addr = addr_implied();          TYA(addr); break;
+        case 0x69: pt = addr_immediate();        ADC(pt); break;
+        case 0x65: pt = addr_zero_page();        ADC(pt); break;
+        case 0x75: pt = addr_zero_page_x();      ADC(pt); break;
+        case 0x6D: pt = addr_abs();              ADC(pt); break;
+        case 0x7D: pt = addr_abs_x();            ADC(pt); break;
+        case 0x79: pt = addr_abs_y();            ADC(pt); break;
+        case 0x61: pt = addr_indexed_indirect(); ADC(pt); break;
+        case 0x71: pt = addr_indirect_indexed(); ADC(pt); break;
+        case 0x29: pt = addr_immediate();        AND(pt); break;
+        case 0x25: pt = addr_zero_page();        AND(pt); break;
+        case 0x35: pt = addr_zero_page_x();      AND(pt); break;
+        case 0x2D: pt = addr_abs();              AND(pt); break;
+        case 0x3D: pt = addr_abs_x();            AND(pt); break;
+        case 0x39: pt = addr_abs_y();            AND(pt); break;
+        case 0x21: pt = addr_indexed_indirect(); AND(pt); break;
+        case 0x31: pt = addr_indirect_indexed(); AND(pt); break;
+        case 0x0A: pt = addr_accumulator();      ASL(pt); break;
+        case 0x06: pt = addr_zero_page();        ASL(pt); break;
+        case 0x16: pt = addr_zero_page_x();      ASL(pt); break;
+        case 0x0E: pt = addr_abs();              ASL(pt); break;
+        case 0x1E: pt = addr_abs_x();            ASL(pt); break;
+        case 0x90: rel_offset = addr_relative(); BCC(rel_offset); break;
+        case 0x80: rel_offset = addr_relative(); BCS(rel_offset); break;
+        case 0xF0: rel_offset = addr_relative(); BEQ(rel_offset); break;
+        case 0x24: pt = addr_zero_page();        BIT(pt); break;
+        case 0x2C: pt = addr_abs();              BIT(pt); break;
+        case 0x30: rel_offset = addr_relative(); BMI(rel_offset); break;
+        case 0xD0: rel_offset = addr_relative(); BNE(rel_offset); break;
+        case 0x10: rel_offset = addr_relative(); BPL(rel_offset); break;
+        case 0x00:                               BRK(); break;
+        case 0x50: rel_offset = addr_relative(); BVC(rel_offset); break;
+        case 0x70: rel_offset = addr_relative(); BVS(rel_offset); break;
+        case 0x18:                               CLC(); break;
+        case 0xD8:                               CLD(); break;
+        case 0x58:                               CLI(); break;
+        case 0xB8:                               CLV(); break;
+        case 0xC9: pt = addr_immediate();        CMP(pt); break;
+        case 0xC5: pt = addr_zero_page();        CMP(pt); break;
+        case 0xD5: pt = addr_zero_page_x();      CMP(pt); break;
+        case 0xCD: pt = addr_abs();              CMP(pt); break;
+        case 0xDD: pt = addr_abs_x();            CMP(pt); break;
+        case 0xD9: pt = addr_abs_y();            CMP(pt); break;
+        case 0xC1: pt = addr_indexed_indirect(); CMP(pt); break;
+        case 0xD1: pt = addr_indirect_indexed(); CMP(pt); break;
+        case 0xE0: pt = addr_immediate();        CPX(pt); break;
+        case 0xE4: pt = addr_zero_page();        CPX(pt); break;
+        case 0xEC: pt = addr_abs();              CPX(pt); break;
+        case 0xC0: pt = addr_immediate();        CPY(pt); break;
+        case 0xC4: pt = addr_zero_page();        CPY(pt); break;
+        case 0xCC: pt = addr_abs();              CPY(pt); break;
+        case 0xC6: pt = addr_zero_page();        DEC(pt); break;
+        case 0xD6: pt = addr_zero_page_x();      DEC(pt); break;
+        case 0xCE: pt = addr_abs();              DEC(pt); break;
+        case 0xDE: pt = addr_abs_x();            DEC(pt); break;
+        case 0xCA:                               DEX(); break;
+        case 0x88:                               DEY(); break;
+        case 0x49: pt = addr_immediate();        EOR(pt); break;
+        case 0x45: pt = addr_zero_page();        EOR(pt); break;
+        case 0x55: pt = addr_zero_page_x();      EOR(pt); break;
+        case 0x4D: pt = addr_abs();              EOR(pt); break;
+        case 0x5D: pt = addr_abs_x();            EOR(pt); break;
+        case 0x59: pt = addr_abs_y();            EOR(pt); break;
+        case 0x41: pt = addr_indexed_indirect(); EOR(pt); break;
+        case 0x51: pt = addr_indirect_indexed(); EOR(pt); break;
+        case 0xE6: pt = addr_zero_page();        INC(pt); break;
+        case 0xF6: pt = addr_zero_page_x();      INC(pt); break;
+        case 0xEE: pt = addr_abs();              INC(pt); break;
+        case 0xFE: pt = addr_abs_x();            INC(pt); break;
+        case 0xE8:                               INX(); break;
+        case 0xC8:                               INY(); break;
+        case 0x4C: pt = addr_abs();              JMP(pt); break;
+        case 0x6C: pt = 0; /* indirect */        JMP(pt); break;
+        case 0x20: pt = addr_abs();              JSR(pt); break;
+        case 0xA9: pt = addr_immediate();        LDA(pt); break;
+        case 0xA5: pt = addr_zero_page();        LDA(pt); break;
+        case 0xB5: pt = addr_zero_page_x();      LDA(pt); break;
+        case 0xAD: pt = addr_abs();              LDA(pt); break;
+        case 0xBD: pt = addr_abs_x();            LDA(pt); break;
+        case 0xB9: pt = addr_abs_y();            LDA(pt); break;
+        case 0xA1: pt = addr_indexed_indirect(); LDA(pt); break;
+        case 0xB1: pt = addr_indirect_indexed(); LDA(pt); break;
+        case 0xA2: pt = addr_immediate();        LDX(pt); break;
+        case 0xA6: pt = addr_zero_page();        LDX(pt); break;
+        case 0xB6: pt = addr_zero_page_y();      LDX(pt); break;
+        case 0xAE: pt = addr_abs();              LDX(pt); break;
+        case 0xBE: pt = addr_abs_y();            LDX(pt); break;
+        case 0xA0: pt = addr_immediate();        LDY(pt); break;
+        case 0xA4: pt = addr_zero_page();        LDY(pt); break;
+        case 0xB4: pt = addr_zero_page_x();      LDY(pt); break;
+        case 0xAC: pt = addr_abs();              LDY(pt); break;
+        case 0xBC: pt = addr_abs_x();            LDY(pt); break;
+        case 0x4A: pt = addr_accumulator();      LSR(pt); break;
+        case 0x46: pt = addr_zero_page();        LSR(pt); break;
+        case 0x56: pt = addr_zero_page_x();      LSR(pt); break;
+        case 0x4E: pt = addr_abs();              LSR(pt); break;
+        case 0x5E: pt = addr_abs_x();            LSR(pt); break;
+        case 0xEA:                               NOP(); break;
+        case 0x09: pt = addr_immediate();        ORA(pt); break;
+        case 0x05: pt = addr_zero_page();        ORA(pt); break;
+        case 0x15: pt = addr_zero_page_x();      ORA(pt); break;
+        case 0x0D: pt = addr_abs();              ORA(pt); break;
+        case 0x1D: pt = addr_abs_x();            ORA(pt); break;
+        case 0x19: pt = addr_abs_y();            ORA(pt); break;
+        case 0x01: pt = addr_indexed_indirect(); ORA(pt); break;
+        case 0x11: pt = addr_indirect_indexed(); ORA(pt); break;
+        case 0x48:                               PHA(); break;
+        case 0x08:                               PHP(); break;
+        case 0x68:                               PLA(); break;
+        case 0x28:                               PLP(); break;
+        case 0x2A: pt = addr_accumulator();      ROL(pt); break;
+        case 0x26: pt = addr_zero_page();        ROL(pt); break;
+        case 0x36: pt = addr_zero_page_x();      ROL(pt); break;
+        case 0x2E: pt = addr_abs();              ROL(pt); break;
+        case 0x3E: pt = addr_abs_x();            ROL(pt); break;
+        case 0x6A: pt = addr_accumulator();      ROR(pt); break;
+        case 0x66: pt = addr_zero_page();        ROR(pt); break;
+        case 0x76: pt = addr_zero_page_x();      ROR(pt); break;
+        case 0x6E: pt = addr_abs();              ROR(pt); break;
+        case 0x7E: pt = addr_abs_x();            ROR(pt); break;
+        case 0x40:                               RTI(); break;
+        case 0x60:                               RTS(); break;
+        case 0xE9: pt = addr_immediate();        SBC(pt); break;
+        case 0xE5: pt = addr_zero_page();        SBC(pt); break;
+        case 0xF5: pt = addr_zero_page_x();      SBC(pt); break;
+        case 0xED: pt = addr_abs();              SBC(pt); break;
+        case 0xFD: pt = addr_abs_x();            SBC(pt); break;
+        case 0xF9: pt = addr_abs_y();            SBC(pt); break;
+        case 0xE1: pt = addr_indexed_indirect(); SBC(pt); break;
+        case 0xF1: pt = addr_indirect_indexed(); SBC(pt); break;
+        case 0x38:                               SEC(); break;
+        case 0xF8:                               SED(); break;
+        case 0x78:                               SEI(); break;
+        case 0x85: pt = addr_zero_page();        STA(pt); break;
+        case 0x95: pt = addr_zero_page_x();      STA(pt); break;
+        case 0x8D: pt = addr_abs();              STA(pt); break;
+        case 0x9D: pt = addr_abs_x();            STA(pt); break;
+        case 0x99: pt = addr_abs_y();            STA(pt); break;
+        case 0x81: pt = addr_indexed_indirect(); STA(pt); break;
+        case 0x91: pt = addr_indirect_indexed(); STA(pt); break;
+        case 0x86: pt = addr_zero_page();        STA(pt); break;
+        case 0x96: pt = addr_zero_page_y();      STA(pt); break;
+        case 0x8E: pt = addr_abs();              STA(pt); break;
+        case 0x84: pt = addr_zero_page();        STY(pt); break;
+        case 0x94: pt = addr_zero_page_x();      STY(pt); break;
+        case 0x8C: pt = addr_abs();              STY(pt); break;
+        case 0xAA:                               TAX(); break;
+        case 0xA8:                               TAY(); break;
+        case 0xBA:                               TSX(); break;
+        case 0x8A:                               TXA(); break;
+        case 0x9A:                               TXS(); break;
+        case 0x98:                               TYA(); break;
         default:
             // note: illegal or undocumented opcode
             // decide on whether or not we want to implement the undocumented ones
@@ -536,7 +538,7 @@ void reset() {
 }
 
 
-int main(int argc, char *argv[]) {
+int main() {
     std::printf("nes emulator");
 
     // DEX
