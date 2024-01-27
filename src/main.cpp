@@ -31,66 +31,76 @@ uint8_t MEMORY[0xFFFF];
 // mapped to 0x4000 - 0x4017 in hardware
 // mapped to 0x4020 - 0xFFFF
 
-uint8_t addr_immediate() {
-    return ++PC;
-}
-
-uint8_t addr_zero_page() {
+uint8_t* addr_immediate() {
     ++PC;
-    return MEMORY[PC];
+    return &(MEMORY[PC]);
 }
 
-uint8_t addr_zero_page_x() {
-    return addr_zero_page() + IND_REG_X; // zero page wrap around
+uint8_t* addr_zero_page() {
+    ++PC;
+    uint16_t addr = (uint16_t)MEMORY[PC];
+    return &(MEMORY[addr]);
 }
 
-uint8_t addr_zero_page_y() {
-    return addr_zero_page() + IND_REG_Y; // zero page wrap around
+uint8_t* addr_zero_page_x() {
+    ++PC;
+    uint16_t addr = (uint16_t)MEMORY[PC];
+    addr = (addr + IND_REG_X) & 0x00FFu; // zero page wrap around
+    return &(MEMORY[addr]);
 }
 
-uint16_t addr_abs() {
+uint8_t* addr_zero_page_y() {
+    ++PC;
+    uint16_t addr = (uint16_t)MEMORY[PC];
+    addr = (addr + IND_REG_Y) & 0x00FFu; // zero page wrap around
+    return &(MEMORY[addr]);
+}
+
+uint8_t* addr_abs() {
     PC += 2;
-    return ((MEMORY[PC] << 8) & 0xFF00) | (MEMORY[PC - 1] & 0x00FF);
+    uint16_t addr = (uint16_t)(((uint16_t)MEMORY[PC] << 8) | (uint16_t)MEMORY[PC - 1]);
+    return &(MEMORY[addr]);
 }
 
-uint16_t addr_abs_x() {
-    return addr_abs() + IND_REG_X;
+uint8_t* addr_abs_x() {
+    PC += 2;
+    uint16_t addr = (uint16_t)(((uint16_t)MEMORY[PC] << 8) | (uint16_t)MEMORY[PC - 1]);
+    addr += IND_REG_X; // allow 16 bit wrap around
+    return &(MEMORY[addr]);
 }
 
-uint16_t addr_abs_y() {
-    return addr_abs() + IND_REG_Y;
+uint8_t* addr_abs_y() {
+    PC += 2;
+    uint16_t addr = (uint16_t)(((uint16_t)MEMORY[PC] << 8) | (uint16_t)MEMORY[PC - 1]);
+    addr += IND_REG_Y; // allow 16 bit wrap around
+    return &(MEMORY[addr]);
 }
 
-uint16_t addr_indexed_indirect() {
+uint8_t* addr_indexed_indirect() {
     ++PC;
-    uint8_t pt = MEMORY[PC];
-    uint8_t ptx = MEMORY[pt] + IND_REG_X; // zero page wrap around
-    return ((MEMORY[ptx + 1] << 8) & 0xFF00) | (MEMORY[ptx] & 0x00FF);
+    uint8_t pt = (uint8_t)(MEMORY[PC] + IND_REG_X); // allow zero page wrap around
+    // note: full addr should always be in zero page, meaning pt + 1 should NOT
+    //       cross the zero page boundary
+    // TODO: figure out what to do if it does cross the boundary
+    uint16_t addr = (uint16_t)(((uint16_t)MEMORY[pt + 1] << 8) | (uint16_t)MEMORY[pt]);
+    return &(MEMORY[addr]);
 }
 
-uint16_t addr_indirect_indexed() {
+uint8_t* addr_indirect_indexed() {
     ++PC;
-    uint8_t pt = MEMORY[PC];
-    uint16_t eff_l = MEMORY[pt] + IND_REG_Y;
-    uint8_t eff_h = MEMORY[pt + 1];
-    // carry over to high byte if needed
-    // TODO: will need extra cycle to fix high byte
-    eff_h += (eff_l >> 8) & 0x00FF;
-    return ((eff_h << 8) & 0xFF00) | (eff_l & 0x00FF);
+    uint16_t pt = (uint16_t)MEMORY[MEMORY[PC]];
+    uint16_t addr = (uint16_t)((((uint16_t)MEMORY[pt + 1] << 8) | (uint16_t)MEMORY[pt]) + IND_REG_Y);
+    return &(MEMORY[addr]);
 }
 
-uint8_t addr_relative() {
+uint8_t* addr_accumulator() {
+    return &ACCUMULATOR;
+}
+
+// returns a sign byte, represents the offset for a relative address
+int8_t addr_relative() {
     ++PC;
-    uint8_t operand = MEMORY[PC];
-    return operand;
-}
-
-uint16_t addr_implied() {
-    return 0; // TODO:
-}
-
-uint16_t addr_accumulator() {
-    return 0; // TODO:
+    return (int8_t)MEMORY[PC];
 }
 
 void ADC(uint16_t addr) {
