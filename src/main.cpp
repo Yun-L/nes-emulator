@@ -296,9 +296,23 @@ void LSR(uint8_t* pt) {
     SET_N(false); // high bit is always 0 after shift
 }
 
-void ROL(uint8_t* pt) {}
+void ROL(uint8_t* pt) {
+    bool old_c = GET_C();
+    SET_C((*pt >> 7) & 1);
+    *pt = (uint8_t)(*pt << 1);
+    *pt |= (uint8_t)old_c;
+    SET_Z(*pt == 0);
+    SET_N((*pt >> 7) & 1);
+}
 
-void ROR(uint8_t* pt) {}
+void ROR(uint8_t* pt) {
+    bool old_c = GET_C();
+    SET_C(*pt & 1);
+    *pt = (uint8_t)(*pt >> 1);
+    *pt |= (((uint8_t)old_c) << 7);
+    SET_Z(*pt == 0);
+    SET_N((*pt >> 7) & 1);
+}
 
 // Jumps & Calls
 void JMP(uint16_t addr) { // TODO: fix JMP indirect
