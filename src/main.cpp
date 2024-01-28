@@ -31,6 +31,8 @@ uint8_t MEMORY[0xFFFF];
 // mapped to 0x4000 - 0x4017 in hardware
 // mapped to 0x4020 - 0xFFFF
 
+
+// -- Addressing Mode Helpers --
 uint8_t* addr_immediate() {
     ++PC;
     return &(MEMORY[PC]);
@@ -98,6 +100,113 @@ uint8_t* addr_accumulator() {
 }
 
 
+// -- Opcodes --
+// Load/Store Operations
+void LDA(uint8_t* pt) {
+    ACCUMULATOR = *pt;
+    SET_Z(ACCUMULATOR == 0);
+    SET_N(IS_NEG(ACCUMULATOR));
+}
+
+void LDX(uint8_t* pt) {
+    IND_REG_X = *pt;
+    SET_Z(IND_REG_X);
+    SET_N(IS_NEG(IND_REG_X));
+}
+
+void LDY(uint8_t* pt) {
+    IND_REG_Y = *pt;
+    SET_Z(IND_REG_Y);
+    SET_N(IS_NEG(IND_REG_Y));
+}
+
+void STA(uint8_t* pt) {
+    *pt = ACCUMULATOR;
+}
+
+void STX(uint8_t* pt) {
+    *pt = IND_REG_X;
+}
+
+void STY(uint8_t* pt) {
+    *pt = IND_REG_Y;
+}
+
+// Register Transfers
+void TAX() {
+    IND_REG_X = ACCUMULATOR;
+    SET_Z(IND_REG_X == 0);
+    SET_N(IS_NEG(IND_REG_X));
+}
+
+void TAY() {
+    IND_REG_Y = ACCUMULATOR;
+    SET_Z(IND_REG_Y == 0);
+    SET_N(IS_NEG(IND_REG_Y));
+}
+
+void TXA() {
+    ACCUMULATOR = IND_REG_X;
+    SET_Z(ACCUMULATOR == 0);
+    SET_N(IS_NEG(ACCUMULATOR));
+}
+
+void TYA() {
+    ACCUMULATOR = IND_REG_Y;
+    SET_Z(ACCUMULATOR == 0);
+    SET_N(IS_NEG(ACCUMULATOR));
+}
+
+// Stack Operation
+void TSX() {
+    IND_REG_X = STACK_POINTER;
+    SET_Z(IND_REG_X == 0);
+    SET_N(IS_NEG(IND_REG_X));
+}
+
+
+void TXS() {
+    STACK_POINTER = IND_REG_X;
+}
+
+void PHA() {
+    
+}
+
+void PHP() {}
+
+void PLA() {}
+
+void PLP() {}
+
+// Logical
+void AND(uint8_t* pt) {
+    ACCUMULATOR &= *pt;
+    SET_Z(ACCUMULATOR == 0);
+    SET_N((ACCUMULATOR >> 7) & 1);
+}
+
+void EOR(uint8_t* pt) {
+    uint8_t val = *pt;
+    ACCUMULATOR = (uint8_t)(ACCUMULATOR ^ val);
+    SET_Z(ACCUMULATOR == 0);
+    SET_N(IS_NEG(ACCUMULATOR));
+}
+
+void ORA(uint8_t* pt) {
+    ACCUMULATOR |= *pt;
+    SET_Z(ACCUMULATOR == 0);
+    SET_N(IS_NEG(ACCUMULATOR));
+}
+
+void BIT(uint8_t* pt) {
+    uint8_t tmp = (uint8_t)(*pt & ACCUMULATOR);
+    SET_Z(tmp == 0);
+    SET_V((tmp >> 6) & 1);
+    SET_N((tmp >> 7) & 1);
+}
+
+// Arithmetic
 void ADC(uint8_t* pt) {
     uint8_t sign_a = (uint8_t)(ACCUMULATOR >> 7);
     uint8_t sign_m = (uint8_t)(MEMORY[PC] >> 7);
@@ -111,75 +220,7 @@ void ADC(uint8_t* pt) {
     SET_N(sign_a_fin & 1);
 }
 
-void AND(uint8_t* pt) {
-    ACCUMULATOR &= *pt;
-    SET_Z(ACCUMULATOR == 0);
-    SET_N((ACCUMULATOR >> 7) & 1);
-}
-
-void ASL(uint8_t* pt) {
-    SET_C((*pt >> 7) & 1);
-    *pt = (uint8_t)(*pt << 1);
-    SET_Z(*pt == 0);
-    SET_N((*pt >> 7) & 1);
-}
-
-void BCC(uint8_t* pt) {
-    if (!GET_C()) PC += (int8_t)(*pt);
-}
-
-void BCS(uint8_t* pt) {
-    if (GET_C()) PC += (int8_t)(*pt);
-}
-
-void BEQ(uint8_t* pt) {
-    if (GET_Z()) PC += (int8_t)(*pt);
-}
-
-void BIT(uint8_t* pt) {
-    uint8_t tmp = (uint8_t)(*pt & ACCUMULATOR);
-    SET_Z(tmp == 0);
-    SET_V((tmp >> 6) & 1);
-    SET_N((tmp >> 7) & 1);
-}
-
-void BMI(uint8_t* pt) {
-    if (GET_N()) PC += (int8_t)(*pt);
-}
-
-void BNE(uint8_t* pt) {
-    if (!GET_Z()) PC += (int8_t)(*pt);
-}
-
-void BPL(uint8_t* pt) {
-    if (!GET_N()) PC += (int8_t)(*pt);
-}
-
-void BRK() {}
-
-void BVC(uint8_t* pt) {
-    if (!GET_V()) PC += (int8_t)(*pt);
-}
-
-void BVS(uint8_t* pt) {
-    if (GET_V()) PC += (int8_t)(*pt);
-}
-
-void CLC() {
-    SET_C(0);
-}
-
-void CLD() {
-    SET_D(0);
-}
-
-void CLI() {
-    SET_I(0);
-}
-
-void CLV() {
-    SET_V(0);
-}
+void SBC(uint8_t* pt) {}
 
 void CMP(uint8_t* pt) {
     uint8_t val = *pt;
@@ -202,11 +243,17 @@ void CPY(uint8_t* pt) {
     SET_N(IS_NEG(val)); // TODO: not sure if 'val' is what the neg test should be done on
 }
 
-void DEC(uint8_t* pt) {
-    *pt -= 1; // TODO: what should happen at 0?
-    uint8_t val = *pt;
-    SET_Z(val == 0); // TODO: find out if Z should be unset too or just set on zero
-    SET_N(IS_NEG(val));
+// Increments & Decrements
+void INX() {
+    ++IND_REG_X;
+    SET_Z(IND_REG_X == 0);
+    SET_N(IS_NEG(IND_REG_X));
+}
+
+void INY() {
+    ++IND_REG_Y;
+    SET_Z(IND_REG_Y == 0);
+    SET_N(IS_NEG(IND_REG_Y));
 }
 
 void DEX() {
@@ -221,57 +268,25 @@ void DEY() {
     SET_N(IS_NEG(IND_REG_Y));
 }
 
-void EOR(uint8_t* pt) {
-    uint8_t val = *pt;
-    ACCUMULATOR = (uint8_t)(ACCUMULATOR ^ val);
-    SET_Z(ACCUMULATOR == 0);
-    SET_N(IS_NEG(ACCUMULATOR));
-}
-
 void INC(uint8_t* pt) {
     ++(*pt);
     SET_Z(*pt == 0);
     SET_N(IS_NEG(*pt));
 }
 
-void INX() {
-    ++IND_REG_X;
-    SET_Z(IND_REG_X == 0);
-    SET_N(IS_NEG(IND_REG_X));
+void DEC(uint8_t* pt) {
+    *pt -= 1; // TODO: what should happen at 0?
+    uint8_t val = *pt;
+    SET_Z(val == 0); // TODO: find out if Z should be unset too or just set on zero
+    SET_N(IS_NEG(val));
 }
 
-void INY() {
-    ++IND_REG_Y;
-    SET_Z(IND_REG_Y == 0);
-    SET_N(IS_NEG(IND_REG_Y));
-}
-
-void JMP(uint8_t* pt) {}
-
-void JSR(uint8_t* pt) {
-    STACK_POINTER -= 2;
-    MEMORY[STACK_POINTER + 2] = (uint8_t)((PC & 0xFF00) >> 8);
-    MEMORY[STACK_POINTER + 1] = (uint8_t)(PC & 0xFF);
-    // PC = addr;
-    // TODO: fix this
-}
-
-void LDA(uint8_t* pt) {
-    ACCUMULATOR = *pt;
-    SET_Z(ACCUMULATOR == 0);
-    SET_N(IS_NEG(ACCUMULATOR));
-}
-
-void LDX(uint8_t* pt) {
-    IND_REG_X = *pt;
-    SET_Z(IND_REG_X);
-    SET_N(IS_NEG(IND_REG_X));
-}
-
-void LDY(uint8_t* pt) {
-    IND_REG_Y = *pt;
-    SET_Z(IND_REG_Y);
-    SET_N(IS_NEG(IND_REG_Y));
+// Shifts
+void ASL(uint8_t* pt) {
+    SET_C((*pt >> 7) & 1);
+    *pt = (uint8_t)(*pt << 1);
+    SET_Z(*pt == 0);
+    SET_N((*pt >> 7) & 1);
 }
 
 void LSR(uint8_t* pt) {
@@ -281,28 +296,74 @@ void LSR(uint8_t* pt) {
     SET_N(false); // high bit is always 0 after shift
 }
 
-
-void NOP() {}
-
-void ORA(uint8_t* pt) {}
-
-void PHA() {}
-
-void PHP() {}
-
-void PLA() {}
-
-void PLP() {}
-
 void ROL(uint8_t* pt) {}
 
 void ROR(uint8_t* pt) {}
 
-void RTI() {}
+// Jumps & Calls
+void JMP(uint16_t addr) { // TODO: fix JMP indirect
+    PC = addr;
+}
+
+void JSR(uint8_t* pt) {
+    STACK_POINTER -= 2;
+    MEMORY[STACK_POINTER + 2] = (uint8_t)((PC & 0xFF00) >> 8);
+    MEMORY[STACK_POINTER + 1] = (uint8_t)(PC & 0xFF);
+    // PC = addr;
+    // TODO: fix this
+}
 
 void RTS() {}
 
-void SBC(uint8_t* pt) {}
+// Branches
+void BCC(uint8_t* pt) {
+    if (!GET_C()) PC += (int8_t)(*pt);
+}
+
+void BCS(uint8_t* pt) {
+    if (GET_C()) PC += (int8_t)(*pt);
+}
+
+void BEQ(uint8_t* pt) {
+    if (GET_Z()) PC += (int8_t)(*pt);
+}
+
+void BMI(uint8_t* pt) {
+    if (GET_N()) PC += (int8_t)(*pt);
+}
+
+void BNE(uint8_t* pt) {
+    if (!GET_Z()) PC += (int8_t)(*pt);
+}
+
+void BPL(uint8_t* pt) {
+    if (!GET_N()) PC += (int8_t)(*pt);
+}
+
+void BVC(uint8_t* pt) {
+    if (!GET_V()) PC += (int8_t)(*pt);
+}
+
+void BVS(uint8_t* pt) {
+    if (GET_V()) PC += (int8_t)(*pt);
+}
+
+// Status Flag Changes
+void CLC() {
+    SET_C(0);
+}
+
+void CLD() {
+    SET_D(0);
+}
+
+void CLI() {
+    SET_I(0);
+}
+
+void CLV() {
+    SET_V(0);
+}
 
 void SEC() {
     SET_C(1);
@@ -316,45 +377,13 @@ void SEI() {
     SET_I(1);
 }
 
-void STA(uint8_t* pt) {}
+// System Functions
+void BRK() {}
 
-void STX(uint8_t* pt) {}
+void NOP() {} // Note: probably don't need this
 
-void STY(uint8_t* pt) {}
+void RTI() {}
 
-void TAX() {
-    IND_REG_X = ACCUMULATOR;
-    SET_Z(IND_REG_X == 0);
-    SET_N(IS_NEG(IND_REG_X));
-}
-
-void TAY() {
-    IND_REG_Y = ACCUMULATOR;
-    SET_Z(IND_REG_Y == 0);
-    SET_N(IS_NEG(IND_REG_Y));
-}
-
-void TSX() {
-    IND_REG_X = STACK_POINTER;
-    SET_Z(IND_REG_X == 0);
-    SET_N(IS_NEG(IND_REG_X));
-}
-
-void TXA() {
-    ACCUMULATOR = IND_REG_X;
-    SET_Z(ACCUMULATOR == 0);
-    SET_N(IS_NEG(ACCUMULATOR));
-}
-
-void TXS() {
-    STACK_POINTER = IND_REG_X;
-}
-
-void TYA() {
-    ACCUMULATOR = IND_REG_Y;
-    SET_Z(ACCUMULATOR == 0);
-    SET_N(IS_NEG(ACCUMULATOR));
-}
 
 void run_instruction(uint8_t opcode) {
     uint8_t* pt;
@@ -540,6 +569,7 @@ void run_instruction(uint8_t opcode) {
     }
 }
 
+// -- Testing Helpers --
 void reset() {
     PC = 0;
     STACK_POINTER = 0;
@@ -554,7 +584,7 @@ void reset() {
 
 
 int main() {
-    std::printf("nes emulator");
+    std::printf("nes emulator\n");
 
     // DEX
     reset();
@@ -565,4 +595,8 @@ int main() {
     if (IND_REG_X != 0 && GET_Z() && !GET_N()) std::printf("DEX zero\n");
     run_instruction(0xCA);
     if (IND_REG_X != 0xFF && !GET_Z() && GET_N()) std::printf("DEX neg\n");
+
+    // test to see if we can get index from pt and memory
+    uint8_t* pt = &(MEMORY[576]);
+    std::printf("MEMORY[%u]\n", (uint16_t)(pt - MEMORY));
 }
