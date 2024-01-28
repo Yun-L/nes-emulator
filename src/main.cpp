@@ -16,6 +16,7 @@
 #define GET_N() ((STATUS_REG & 0b10000000) > 0)
 
 uint16_t PC;
+// TODO: handle the stack pointer offset, maybe make some stack op funcs/macros
 uint8_t STACK_POINTER; //stack is 0x0100 - 0x01FF in memory, pointer is least significant half
 uint8_t ACCUMULATOR;
 uint8_t IND_REG_X;
@@ -170,14 +171,24 @@ void TXS() {
 }
 
 void PHA() {
-    
+    MEMORY[STACK_POINTER] = ACCUMULATOR;
+    --STACK_POINTER;
 }
 
-void PHP() {}
+void PHP() {
+    MEMORY[STACK_POINTER] = STATUS_REG;
+    --STACK_POINTER;
+}
 
-void PLA() {}
+void PLA() {
+    ++STACK_POINTER;
+    ACCUMULATOR = MEMORY[STACK_POINTER];
+}
 
-void PLP() {}
+void PLP() {
+    ++STACK_POINTER;
+    STATUS_REG = MEMORY[STACK_POINTER];
+}
 
 // Logical
 void AND(uint8_t* pt) {
