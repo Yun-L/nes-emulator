@@ -97,12 +97,6 @@ uint8_t* addr_accumulator() {
     return &ACCUMULATOR;
 }
 
-// returns a sign byte, represents the offset for a relative address
-int8_t addr_relative() {
-    ++PC;
-    return (int8_t)MEMORY[PC];
-}
-
 
 void ADC(uint8_t* pt) {
     uint8_t sign_a = (uint8_t)(ACCUMULATOR >> 7);
@@ -130,16 +124,16 @@ void ASL(uint8_t* pt) {
     SET_N((*pt >> 7) & 1);
 }
 
-void BCC(int8_t offset) {
-    if (!GET_C()) PC += offset;
+void BCC(uint8_t* pt) {
+    if (!GET_C()) PC += (int8_t)(*pt);
 }
 
-void BCS(int8_t offset) {
-    if (GET_C()) PC += offset;
+void BCS(uint8_t* pt) {
+    if (GET_C()) PC += (int8_t)(*pt);
 }
 
-void BEQ(int8_t offset) {
-    if (GET_Z()) PC += offset;
+void BEQ(uint8_t* pt) {
+    if (GET_Z()) PC += (int8_t)(*pt);
 }
 
 void BIT(uint8_t* pt) {
@@ -149,26 +143,26 @@ void BIT(uint8_t* pt) {
     SET_N((tmp >> 7) & 1);
 }
 
-void BMI(int8_t offset) {
-    if (GET_N()) PC += offset;
+void BMI(uint8_t* pt) {
+    if (GET_N()) PC += (int8_t)(*pt);
 }
 
-void BNE(int8_t offset) {
-    if (!GET_Z()) PC += offset;
+void BNE(uint8_t* pt) {
+    if (!GET_Z()) PC += (int8_t)(*pt);
 }
 
-void BPL(int8_t offset) {
-    if (!GET_N()) PC += offset;
+void BPL(uint8_t* pt) {
+    if (!GET_N()) PC += (int8_t)(*pt);
 }
 
 void BRK() {}
 
-void BVC(int8_t offset) {
-    if (!GET_V()) PC += offset;
+void BVC(uint8_t* pt) {
+    if (!GET_V()) PC += (int8_t)(*pt);
 }
 
-void BVS(int8_t offset) {
-    if (GET_V()) PC += offset;
+void BVS(uint8_t* pt) {
+    if (GET_V()) PC += (int8_t)(*pt);
 }
 
 void CLC() {
