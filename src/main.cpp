@@ -22,6 +22,8 @@ uint8_t ACCUMULATOR;
 uint8_t IND_REG_X;
 uint8_t IND_REG_Y;
 uint8_t STATUS_REG;
+// Note: supposedly the NES CPU lacks a decimal mode, so the D status flag
+// shouldn't affect anything, need to make sure
 
 uint8_t MEMORY[0xFFFF];
 // mapped to 0x0000 - 0x07FF in hardware
@@ -100,7 +102,8 @@ uint8_t* addr_accumulator() {
     return &ACCUMULATOR;
 }
 
-
+// TODO: apparently some games (rare) use unofficial opcodes, may need to
+//       implement them
 // -- Opcodes --
 // Load/Store Operations
 void LDA(uint8_t* pt) {
