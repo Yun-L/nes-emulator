@@ -222,19 +222,22 @@ void BIT(uint8_t* pt) {
 
 // Arithmetic
 void ADC(uint8_t* pt) {
-    uint8_t sign_a = (uint8_t)(ACCUMULATOR >> 7);
-    uint8_t sign_m = (uint8_t)(MEMORY[PC] >> 7);
-    SET_C((ACCUMULATOR + MEMORY[PC]) > 0xFFu);
-    ACCUMULATOR += *pt;
-    uint8_t sign_a_fin = (uint8_t)(ACCUMULATOR >> 7);
-    SET_Z(ACCUMULATOR == 0);
-    if (sign_a == sign_m) {
-        SET_V(sign_a_fin != sign_a);
-    }
-    SET_N(sign_a_fin & 1);
+    uint16_t tmp = (uint16_t)((uint16_t)ACCUMULATOR + (uint16_t)*pt + (uint16_t)GET_C());
+    SET_C(tmp > 255);
+    SET_V(tmp > 255);
+    SET_Z(tmp == 0);
+    ACCUMULATOR = (uint8_t)(tmp & 0x00FFu);
+    SET_N((ACCUMULATOR >> 7) & 1);
 }
 
-void SBC(uint8_t* pt) {}
+void SBC(uint8_t* pt) {
+    int16_t tmp = (int16_t)((int16_t)ACCUMULATOR - (int16_t)*pt - (int16_t)!GET_C());
+    SET_C(tmp >= 0);
+    SET_V(tmp > 127 || tmp < -127);
+    SET_Z(tmp == 0);
+    ACCUMULATOR = (uint8_t)(tmp & 0x00FFu);
+    SET_N((ACCUMULATOR >> 7) & 1);
+}
 
 void CMP(uint8_t* pt) {
     uint8_t val = *pt;
