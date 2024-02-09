@@ -6,12 +6,14 @@
 #define SET_Z(b) ((STATUS_REG &= 0b11111101) | ((uint8_t)(b) << 1))
 #define SET_I(b) ((STATUS_REG &= 0b11111011) | ((uint8_t)(b) << 2))
 #define SET_D(b) ((STATUS_REG &= 0b11110111) | ((uint8_t)(b) << 3))
+#define SET_B(b) ((STATUS_REG &= 0b11110111) | ((uint8_t)(b) << 4))
 #define SET_V(b) ((STATUS_REG &= 0b10111111) | ((uint8_t)(b) << 6))
 #define SET_N(b) ((STATUS_REG &= 0b01111111) | ((uint8_t)(b) << 7))
 #define GET_C() ((STATUS_REG & 0b00000001) > 0)
 #define GET_Z() ((STATUS_REG & 0b00000010) > 0)
 #define GET_I() ((STATUS_REG & 0b00000100) > 0)
 #define GET_D() ((STATUS_REG & 0b00001000) > 0)
+#define GET_B() ((STATUS_REG & 0b00010000) > 0)
 #define GET_V() ((STATUS_REG & 0b01000000) > 0)
 #define GET_N() ((STATUS_REG & 0b10000000) > 0)
 
@@ -24,6 +26,7 @@ uint8_t IND_REG_Y;
 uint8_t STATUS_REG;
 // Note: supposedly the NES CPU lacks a decimal mode, so the D status flag
 // shouldn't affect anything, need to make sure
+// Note: bit 5 may always be set, according to nesdev.org/6502_cpu.txt
 
 uint8_t MEMORY[0xFFFF];
 // mapped to 0x0000 - 0x07FF in hardware
@@ -36,70 +39,48 @@ uint8_t MEMORY[0xFFFF];
 
 
 // -- Addressing Mode Helpers --
-uint8_t* addr_immediate() {
-    ++PC;
-    return &(MEMORY[PC]);
+uint16_t addr_zero_page() {
+    return (uint16_t)MEMORY[++PC];
 }
 
-uint8_t* addr_zero_page() {
-    ++PC;
-    uint16_t addr = (uint16_t)MEMORY[PC];
-    return &(MEMORY[addr]);
+uint16_t addr_zero_page_x() {
+    uint16_t addr = (uint16_t)MEMORY[++PC];
+    return (addr + IND_REG_X) & 0x00FFu; // zero page wrap around
 }
 
-uint8_t* addr_zero_page_x() {
-    ++PC;
-    uint16_t addr = (uint16_t)MEMORY[PC];
-    addr = (addr + IND_REG_X) & 0x00FFu; // zero page wrap around
-    return &(MEMORY[addr]);
+uint16_t addr_zero_page_y() {
+    uint16_t addr = (uint16_t)MEMORY[++PC];
+    return (addr + IND_REG_Y) & 0x00FFu; // zero page wrap around
 }
 
-uint8_t* addr_zero_page_y() {
-    ++PC;
-    uint16_t addr = (uint16_t)MEMORY[PC];
-    addr = (addr + IND_REG_Y) & 0x00FFu; // zero page wrap around
-    return &(MEMORY[addr]);
+uint16_t addr_abs() {
+    PC += 2;
+    return (uint16_t)(((uint16_t)MEMORY[PC] << 8) | (uint16_t)MEMORY[PC - 1]);
 }
 
-uint8_t* addr_abs() {
+uint16_t addr_abs_x() {
     PC += 2;
     uint16_t addr = (uint16_t)(((uint16_t)MEMORY[PC] << 8) | (uint16_t)MEMORY[PC - 1]);
-    return &(MEMORY[addr]);
+    return (uint16_t)(addr + IND_REG_X); // allow 16 bit wrap around
 }
 
-uint8_t* addr_abs_x() {
+uint16_t addr_abs_y() {
     PC += 2;
     uint16_t addr = (uint16_t)(((uint16_t)MEMORY[PC] << 8) | (uint16_t)MEMORY[PC - 1]);
-    addr += IND_REG_X; // allow 16 bit wrap around
-    return &(MEMORY[addr]);
+    return (uint16_t)(addr + IND_REG_Y); // allow 16 bit wrap around
 }
 
-uint8_t* addr_abs_y() {
-    PC += 2;
-    uint16_t addr = (uint16_t)(((uint16_t)MEMORY[PC] << 8) | (uint16_t)MEMORY[PC - 1]);
-    addr += IND_REG_Y; // allow 16 bit wrap around
-    return &(MEMORY[addr]);
-}
-
-uint8_t* addr_indexed_indirect() {
-    ++PC;
-    uint8_t pt = (uint8_t)(MEMORY[PC] + IND_REG_X); // allow zero page wrap around
+uint16_t addr_indexed_indirect() {
+    uint8_t pt = (uint8_t)(MEMORY[++PC] + IND_REG_X); // allow zero page wrap around
     // note: full addr should always be in zero page, meaning pt + 1 should NOT
     //       cross the zero page boundary
     // TODO: figure out what to do if it does cross the boundary
-    uint16_t addr = (uint16_t)(((uint16_t)MEMORY[pt + 1] << 8) | (uint16_t)MEMORY[pt]);
-    return &(MEMORY[addr]);
+    return (uint16_t)(((uint16_t)MEMORY[pt + 1] << 8) | (uint16_t)MEMORY[pt]);
 }
 
-uint8_t* addr_indirect_indexed() {
-    ++PC;
-    uint16_t pt = (uint16_t)MEMORY[MEMORY[PC]];
-    uint16_t addr = (uint16_t)((((uint16_t)MEMORY[pt + 1] << 8) | (uint16_t)MEMORY[pt]) + IND_REG_Y);
-    return &(MEMORY[addr]);
-}
-
-uint8_t* addr_accumulator() {
-    return &ACCUMULATOR;
+uint16_t addr_indirect_indexed() {
+    uint16_t pt = (uint16_t)MEMORY[MEMORY[++PC]];
+    return (uint16_t)((((uint16_t)MEMORY[pt + 1] << 8) | (uint16_t)MEMORY[pt]) + IND_REG_Y);
 }
 
 // TODO: apparently some games (rare) use unofficial opcodes, may need to
@@ -332,19 +313,25 @@ void ROR(uint8_t* pt) {
 }
 
 // Jumps & Calls
-void JMP(uint16_t addr) { // TODO: fix JMP indirect
+void JMP(uint16_t addr, bool indirect) {
+    if (indirect) {
+        PC = (uint16_t)((((uint16_t)MEMORY[addr+1]) << 8) | ((uint16_t)MEMORY[addr]));
+        return;
+    }
     PC = addr;
 }
 
-void JSR(uint8_t* pt) {
+void JSR(uint16_t addr) {
     STACK_POINTER -= 2;
     MEMORY[STACK_POINTER + 2] = (uint8_t)((PC & 0xFF00) >> 8);
     MEMORY[STACK_POINTER + 1] = (uint8_t)(PC & 0xFF);
-    // PC = addr;
-    // TODO: fix this
+    PC = addr;
 }
 
-void RTS() {}
+void RTS() {
+    STACK_POINTER += 2;
+    PC = (uint16_t)(((uint16_t)MEMORY[STACK_POINTER] << 8) | (uint16_t)MEMORY[STACK_POINTER - 1]);
+}
 
 // Branches
 void BCC(uint8_t* pt) {
@@ -409,188 +396,199 @@ void SEI() {
 }
 
 // System Functions
-void BRK() {}
+void BRK() {
+    STACK_POINTER -= 3;
+    SET_B(1); // Note: does this get set then pushed onto the stack? or after
+    MEMORY[STACK_POINTER + 3] = (uint8_t)((PC & 0xFF00) >> 8);
+    MEMORY[STACK_POINTER + 2] = (uint8_t)(PC & 0xFF);
+    MEMORY[STACK_POINTER + 1] = STATUS_REG;
+    PC = (uint16_t)((((uint16_t)MEMORY[0xFFFF]) << 8) | ((uint16_t)MEMORY[0xFFFE]));
+}
 
 void NOP() {} // Note: probably don't need this
 
-void RTI() {}
+void RTI() {
+    STACK_POINTER += 3;
+    STATUS_REG = MEMORY[STACK_POINTER - 2];
+    PC = (uint16_t)(((uint16_t)MEMORY[STACK_POINTER] << 8) | (uint16_t)MEMORY[STACK_POINTER - 1]);
+}
 
 
 void run_instruction(uint8_t opcode) {
-    uint8_t* pt;
+    uint16_t addr;
     switch (opcode) {
         // Load/Store Operations
-        case 0xA9: pt = addr_immediate();        LDA(pt); break;
-        case 0xA5: pt = addr_zero_page();        LDA(pt); break;
-        case 0xB5: pt = addr_zero_page_x();      LDA(pt); break;
-        case 0xAD: pt = addr_abs();              LDA(pt); break;
-        case 0xBD: pt = addr_abs_x();            LDA(pt); break;
-        case 0xB9: pt = addr_abs_y();            LDA(pt); break;
-        case 0xA1: pt = addr_indexed_indirect(); LDA(pt); break;
-        case 0xB1: pt = addr_indirect_indexed(); LDA(pt); break;
-        case 0xA2: pt = addr_immediate();        LDX(pt); break;
-        case 0xA6: pt = addr_zero_page();        LDX(pt); break;
-        case 0xB6: pt = addr_zero_page_y();      LDX(pt); break;
-        case 0xAE: pt = addr_abs();              LDX(pt); break;
-        case 0xBE: pt = addr_abs_y();            LDX(pt); break;
-        case 0xA0: pt = addr_immediate();        LDY(pt); break;
-        case 0xA4: pt = addr_zero_page();        LDY(pt); break;
-        case 0xB4: pt = addr_zero_page_x();      LDY(pt); break;
-        case 0xAC: pt = addr_abs();              LDY(pt); break;
-        case 0xBC: pt = addr_abs_x();            LDY(pt); break;
-        case 0x85: pt = addr_zero_page();        STA(pt); break;
-        case 0x95: pt = addr_zero_page_x();      STA(pt); break;
-        case 0x8D: pt = addr_abs();              STA(pt); break;
-        case 0x9D: pt = addr_abs_x();            STA(pt); break;
-        case 0x99: pt = addr_abs_y();            STA(pt); break;
-        case 0x81: pt = addr_indexed_indirect(); STA(pt); break;
-        case 0x91: pt = addr_indirect_indexed(); STA(pt); break;
-        case 0x86: pt = addr_zero_page();        STX(pt); break;
-        case 0x96: pt = addr_zero_page_y();      STX(pt); break;
-        case 0x8E: pt = addr_abs();              STX(pt); break;
-        case 0x84: pt = addr_zero_page();        STY(pt); break;
-        case 0x94: pt = addr_zero_page_x();      STY(pt); break;
-        case 0x8C: pt = addr_abs();              STY(pt); break;
+        case 0xA9: addr = ++PC;                    LDA(&MEMORY[addr]); break;
+        case 0xA5: addr = addr_zero_page();        LDA(&MEMORY[addr]); break;
+        case 0xB5: addr = addr_zero_page_x();      LDA(&MEMORY[addr]); break;
+        case 0xAD: addr = addr_abs();              LDA(&MEMORY[addr]); break;
+        case 0xBD: addr = addr_abs_x();            LDA(&MEMORY[addr]); break;
+        case 0xB9: addr = addr_abs_y();            LDA(&MEMORY[addr]); break;
+        case 0xA1: addr = addr_indexed_indirect(); LDA(&MEMORY[addr]); break;
+        case 0xB1: addr = addr_indirect_indexed(); LDA(&MEMORY[addr]); break;
+        case 0xA2: addr = ++PC;                    LDX(&MEMORY[addr]); break;
+        case 0xA6: addr = addr_zero_page();        LDX(&MEMORY[addr]); break;
+        case 0xB6: addr = addr_zero_page_y();      LDX(&MEMORY[addr]); break;
+        case 0xAE: addr = addr_abs();              LDX(&MEMORY[addr]); break;
+        case 0xBE: addr = addr_abs_y();            LDX(&MEMORY[addr]); break;
+        case 0xA0: addr = ++PC;                    LDY(&MEMORY[addr]); break;
+        case 0xA4: addr = addr_zero_page();        LDY(&MEMORY[addr]); break;
+        case 0xB4: addr = addr_zero_page_x();      LDY(&MEMORY[addr]); break;
+        case 0xAC: addr = addr_abs();              LDY(&MEMORY[addr]); break;
+        case 0xBC: addr = addr_abs_x();            LDY(&MEMORY[addr]); break;
+        case 0x85: addr = addr_zero_page();        STA(&MEMORY[addr]); break;
+        case 0x95: addr = addr_zero_page_x();      STA(&MEMORY[addr]); break;
+        case 0x8D: addr = addr_abs();              STA(&MEMORY[addr]); break;
+        case 0x9D: addr = addr_abs_x();            STA(&MEMORY[addr]); break;
+        case 0x99: addr = addr_abs_y();            STA(&MEMORY[addr]); break;
+        case 0x81: addr = addr_indexed_indirect(); STA(&MEMORY[addr]); break;
+        case 0x91: addr = addr_indirect_indexed(); STA(&MEMORY[addr]); break;
+        case 0x86: addr = addr_zero_page();        STX(&MEMORY[addr]); break;
+        case 0x96: addr = addr_zero_page_y();      STX(&MEMORY[addr]); break;
+        case 0x8E: addr = addr_abs();              STX(&MEMORY[addr]); break;
+        case 0x84: addr = addr_zero_page();        STY(&MEMORY[addr]); break;
+        case 0x94: addr = addr_zero_page_x();      STY(&MEMORY[addr]); break;
+        case 0x8C: addr = addr_abs();              STY(&MEMORY[addr]); break;
 
         // Register Transfers
-        case 0xAA: /* implied */                 TAX(); break;
-        case 0xA8: /* implied */                 TAY(); break;
-        case 0x8A: /* implied */                 TXA(); break;
-        case 0x98: /* implied */                 TYA(); break;
+        case 0xAA: /* implied */                   TAX(); break;
+        case 0xA8: /* implied */                   TAY(); break;
+        case 0x8A: /* implied */                   TXA(); break;
+        case 0x98: /* implied */                   TYA(); break;
 
         // Stack Operation
-        case 0xBA: /* implied */                 TSX(); break;
-        case 0x9A: /* implied */                 TXS(); break;
-        case 0x48: /* implied */                 PHA(); break;
-        case 0x08: /* implied */                 PHP(); break;
-        case 0x68: /* implied */                 PLA(); break;
-        case 0x28: /* implied */                 PLP(); break;
+        case 0xBA: /* implied */                   TSX(); break;
+        case 0x9A: /* implied */                   TXS(); break;
+        case 0x48: /* implied */                   PHA(); break;
+        case 0x08: /* implied */                   PHP(); break;
+        case 0x68: /* implied */                   PLA(); break;
+        case 0x28: /* implied */                   PLP(); break;
 
         // Logical
-        case 0x29: pt = addr_immediate();        AND(pt); break;
-        case 0x25: pt = addr_zero_page();        AND(pt); break;
-        case 0x35: pt = addr_zero_page_x();      AND(pt); break;
-        case 0x2D: pt = addr_abs();              AND(pt); break;
-        case 0x3D: pt = addr_abs_x();            AND(pt); break;
-        case 0x39: pt = addr_abs_y();            AND(pt); break;
-        case 0x21: pt = addr_indexed_indirect(); AND(pt); break;
-        case 0x31: pt = addr_indirect_indexed(); AND(pt); break;
-        case 0x49: pt = addr_immediate();        EOR(pt); break;
-        case 0x45: pt = addr_zero_page();        EOR(pt); break;
-        case 0x55: pt = addr_zero_page_x();      EOR(pt); break;
-        case 0x4D: pt = addr_abs();              EOR(pt); break;
-        case 0x5D: pt = addr_abs_x();            EOR(pt); break;
-        case 0x59: pt = addr_abs_y();            EOR(pt); break;
-        case 0x41: pt = addr_indexed_indirect(); EOR(pt); break;
-        case 0x51: pt = addr_indirect_indexed(); EOR(pt); break;
-        case 0x09: pt = addr_immediate();        ORA(pt); break;
-        case 0x05: pt = addr_zero_page();        ORA(pt); break;
-        case 0x15: pt = addr_zero_page_x();      ORA(pt); break;
-        case 0x0D: pt = addr_abs();              ORA(pt); break;
-        case 0x1D: pt = addr_abs_x();            ORA(pt); break;
-        case 0x19: pt = addr_abs_y();            ORA(pt); break;
-        case 0x01: pt = addr_indexed_indirect(); ORA(pt); break;
-        case 0x11: pt = addr_indirect_indexed(); ORA(pt); break;
-        case 0x24: pt = addr_zero_page();        BIT(pt); break;
-        case 0x2C: pt = addr_abs();              BIT(pt); break;
+        case 0x29: addr = ++PC;                    AND(&MEMORY[addr]); break;
+        case 0x25: addr = addr_zero_page();        AND(&MEMORY[addr]); break;
+        case 0x35: addr = addr_zero_page_x();      AND(&MEMORY[addr]); break;
+        case 0x2D: addr = addr_abs();              AND(&MEMORY[addr]); break;
+        case 0x3D: addr = addr_abs_x();            AND(&MEMORY[addr]); break;
+        case 0x39: addr = addr_abs_y();            AND(&MEMORY[addr]); break;
+        case 0x21: addr = addr_indexed_indirect(); AND(&MEMORY[addr]); break;
+        case 0x31: addr = addr_indirect_indexed(); AND(&MEMORY[addr]); break;
+        case 0x49: addr = ++PC;                    EOR(&MEMORY[addr]); break;
+        case 0x45: addr = addr_zero_page();        EOR(&MEMORY[addr]); break;
+        case 0x55: addr = addr_zero_page_x();      EOR(&MEMORY[addr]); break;
+        case 0x4D: addr = addr_abs();              EOR(&MEMORY[addr]); break;
+        case 0x5D: addr = addr_abs_x();            EOR(&MEMORY[addr]); break;
+        case 0x59: addr = addr_abs_y();            EOR(&MEMORY[addr]); break;
+        case 0x41: addr = addr_indexed_indirect(); EOR(&MEMORY[addr]); break;
+        case 0x51: addr = addr_indirect_indexed(); EOR(&MEMORY[addr]); break;
+        case 0x09: addr = ++PC;                    ORA(&MEMORY[addr]); break;
+        case 0x05: addr = addr_zero_page();        ORA(&MEMORY[addr]); break;
+        case 0x15: addr = addr_zero_page_x();      ORA(&MEMORY[addr]); break;
+        case 0x0D: addr = addr_abs();              ORA(&MEMORY[addr]); break;
+        case 0x1D: addr = addr_abs_x();            ORA(&MEMORY[addr]); break;
+        case 0x19: addr = addr_abs_y();            ORA(&MEMORY[addr]); break;
+        case 0x01: addr = addr_indexed_indirect(); ORA(&MEMORY[addr]); break;
+        case 0x11: addr = addr_indirect_indexed(); ORA(&MEMORY[addr]); break;
+        case 0x24: addr = addr_zero_page();        BIT(&MEMORY[addr]); break;
+        case 0x2C: addr = addr_abs();              BIT(&MEMORY[addr]); break;
 
         // Arithmetic
-        case 0x69: pt = addr_immediate();        ADC(pt); break;
-        case 0x65: pt = addr_zero_page();        ADC(pt); break;
-        case 0x75: pt = addr_zero_page_x();      ADC(pt); break;
-        case 0x6D: pt = addr_abs();              ADC(pt); break;
-        case 0x7D: pt = addr_abs_x();            ADC(pt); break;
-        case 0x79: pt = addr_abs_y();            ADC(pt); break;
-        case 0x61: pt = addr_indexed_indirect(); ADC(pt); break;
-        case 0x71: pt = addr_indirect_indexed(); ADC(pt); break;
-        case 0xE9: pt = addr_immediate();        SBC(pt); break;
-        case 0xE5: pt = addr_zero_page();        SBC(pt); break;
-        case 0xF5: pt = addr_zero_page_x();      SBC(pt); break;
-        case 0xED: pt = addr_abs();              SBC(pt); break;
-        case 0xFD: pt = addr_abs_x();            SBC(pt); break;
-        case 0xF9: pt = addr_abs_y();            SBC(pt); break;
-        case 0xE1: pt = addr_indexed_indirect(); SBC(pt); break;
-        case 0xF1: pt = addr_indirect_indexed(); SBC(pt); break;
-        case 0xC9: pt = addr_immediate();        CMP(pt); break;
-        case 0xC5: pt = addr_zero_page();        CMP(pt); break;
-        case 0xD5: pt = addr_zero_page_x();      CMP(pt); break;
-        case 0xCD: pt = addr_abs();              CMP(pt); break;
-        case 0xDD: pt = addr_abs_x();            CMP(pt); break;
-        case 0xD9: pt = addr_abs_y();            CMP(pt); break;
-        case 0xC1: pt = addr_indexed_indirect(); CMP(pt); break;
-        case 0xD1: pt = addr_indirect_indexed(); CMP(pt); break;
-        case 0xE0: pt = addr_immediate();        CPX(pt); break;
-        case 0xE4: pt = addr_zero_page();        CPX(pt); break;
-        case 0xEC: pt = addr_abs();              CPX(pt); break;
-        case 0xC0: pt = addr_immediate();        CPY(pt); break;
-        case 0xC4: pt = addr_zero_page();        CPY(pt); break;
-        case 0xCC: pt = addr_abs();              CPY(pt); break;
+        case 0x69: addr = ++PC;                    ADC(&MEMORY[addr]); break;
+        case 0x65: addr = addr_zero_page();        ADC(&MEMORY[addr]); break;
+        case 0x75: addr = addr_zero_page_x();      ADC(&MEMORY[addr]); break;
+        case 0x6D: addr = addr_abs();              ADC(&MEMORY[addr]); break;
+        case 0x7D: addr = addr_abs_x();            ADC(&MEMORY[addr]); break;
+        case 0x79: addr = addr_abs_y();            ADC(&MEMORY[addr]); break;
+        case 0x61: addr = addr_indexed_indirect(); ADC(&MEMORY[addr]); break;
+        case 0x71: addr = addr_indirect_indexed(); ADC(&MEMORY[addr]); break;
+        case 0xE9: addr = ++PC;                    SBC(&MEMORY[addr]); break;
+        case 0xE5: addr = addr_zero_page();        SBC(&MEMORY[addr]); break;
+        case 0xF5: addr = addr_zero_page_x();      SBC(&MEMORY[addr]); break;
+        case 0xED: addr = addr_abs();              SBC(&MEMORY[addr]); break;
+        case 0xFD: addr = addr_abs_x();            SBC(&MEMORY[addr]); break;
+        case 0xF9: addr = addr_abs_y();            SBC(&MEMORY[addr]); break;
+        case 0xE1: addr = addr_indexed_indirect(); SBC(&MEMORY[addr]); break;
+        case 0xF1: addr = addr_indirect_indexed(); SBC(&MEMORY[addr]); break;
+        case 0xC9: addr = ++PC;                    CMP(&MEMORY[addr]); break;
+        case 0xC5: addr = addr_zero_page();        CMP(&MEMORY[addr]); break;
+        case 0xD5: addr = addr_zero_page_x();      CMP(&MEMORY[addr]); break;
+        case 0xCD: addr = addr_abs();              CMP(&MEMORY[addr]); break;
+        case 0xDD: addr = addr_abs_x();            CMP(&MEMORY[addr]); break;
+        case 0xD9: addr = addr_abs_y();            CMP(&MEMORY[addr]); break;
+        case 0xC1: addr = addr_indexed_indirect(); CMP(&MEMORY[addr]); break;
+        case 0xD1: addr = addr_indirect_indexed(); CMP(&MEMORY[addr]); break;
+        case 0xE0: addr = ++PC;                    CPX(&MEMORY[addr]); break;
+        case 0xE4: addr = addr_zero_page();        CPX(&MEMORY[addr]); break;
+        case 0xEC: addr = addr_abs();              CPX(&MEMORY[addr]); break;
+        case 0xC0: addr = ++PC;                    CPY(&MEMORY[addr]); break;
+        case 0xC4: addr = addr_zero_page();        CPY(&MEMORY[addr]); break;
+        case 0xCC: addr = addr_abs();              CPY(&MEMORY[addr]); break;
 
         // Increments & Decrements
-        case 0xE8: /* implied */                 INX(); break;
-        case 0xC8: /* implied */                 INY(); break;
-        case 0xCA: /* implied */                 DEX(); break;
-        case 0x88: /* implied */                 DEY(); break;
-        case 0xE6: pt = addr_zero_page();        INC(pt); break;
-        case 0xF6: pt = addr_zero_page_x();      INC(pt); break;
-        case 0xEE: pt = addr_abs();              INC(pt); break;
-        case 0xFE: pt = addr_abs_x();            INC(pt); break;
-        case 0xC6: pt = addr_zero_page();        DEC(pt); break;
-        case 0xD6: pt = addr_zero_page_x();      DEC(pt); break;
-        case 0xCE: pt = addr_abs();              DEC(pt); break;
-        case 0xDE: pt = addr_abs_x();            DEC(pt); break;
+        case 0xE8: /* implied */                   INX(); break;
+        case 0xC8: /* implied */                   INY(); break;
+        case 0xCA: /* implied */                   DEX(); break;
+        case 0x88: /* implied */                   DEY(); break;
+        case 0xE6: addr = addr_zero_page();        INC(&MEMORY[addr]); break;
+        case 0xF6: addr = addr_zero_page_x();      INC(&MEMORY[addr]); break;
+        case 0xEE: addr = addr_abs();              INC(&MEMORY[addr]); break;
+        case 0xFE: addr = addr_abs_x();            INC(&MEMORY[addr]); break;
+        case 0xC6: addr = addr_zero_page();        DEC(&MEMORY[addr]); break;
+        case 0xD6: addr = addr_zero_page_x();      DEC(&MEMORY[addr]); break;
+        case 0xCE: addr = addr_abs();              DEC(&MEMORY[addr]); break;
+        case 0xDE: addr = addr_abs_x();            DEC(&MEMORY[addr]); break;
 
         // Shifts
-        case 0x0A: pt = addr_accumulator();      ASL(pt); break;
-        case 0x06: pt = addr_zero_page();        ASL(pt); break;
-        case 0x16: pt = addr_zero_page_x();      ASL(pt); break;
-        case 0x0E: pt = addr_abs();              ASL(pt); break;
-        case 0x1E: pt = addr_abs_x();            ASL(pt); break;
-        case 0x4A: pt = addr_accumulator();      LSR(pt); break;
-        case 0x46: pt = addr_zero_page();        LSR(pt); break;
-        case 0x56: pt = addr_zero_page_x();      LSR(pt); break;
-        case 0x4E: pt = addr_abs();              LSR(pt); break;
-        case 0x5E: pt = addr_abs_x();            LSR(pt); break;
-        case 0x2A: pt = addr_accumulator();      ROL(pt); break;
-        case 0x26: pt = addr_zero_page();        ROL(pt); break;
-        case 0x36: pt = addr_zero_page_x();      ROL(pt); break;
-        case 0x2E: pt = addr_abs();              ROL(pt); break;
-        case 0x3E: pt = addr_abs_x();            ROL(pt); break;
-        case 0x6A: pt = addr_accumulator();      ROR(pt); break;
-        case 0x66: pt = addr_zero_page();        ROR(pt); break;
-        case 0x76: pt = addr_zero_page_x();      ROR(pt); break;
-        case 0x6E: pt = addr_abs();              ROR(pt); break;
-        case 0x7E: pt = addr_abs_x();            ROR(pt); break;
+        case 0x0A:                                 ASL(&ACCUMULATOR); break;
+        case 0x06: addr = addr_zero_page();        ASL(&MEMORY[addr]); break;
+        case 0x16: addr = addr_zero_page_x();      ASL(&MEMORY[addr]); break;
+        case 0x0E: addr = addr_abs();              ASL(&MEMORY[addr]); break;
+        case 0x1E: addr = addr_abs_x();            ASL(&MEMORY[addr]); break;
+        case 0x4A:                                 LSR(&ACCUMULATOR); break;
+        case 0x46: addr = addr_zero_page();        LSR(&MEMORY[addr]); break;
+        case 0x56: addr = addr_zero_page_x();      LSR(&MEMORY[addr]); break;
+        case 0x4E: addr = addr_abs();              LSR(&MEMORY[addr]); break;
+        case 0x5E: addr = addr_abs_x();            LSR(&MEMORY[addr]); break;
+        case 0x2A:                                 ROL(&ACCUMULATOR); break;
+        case 0x26: addr = addr_zero_page();        ROL(&MEMORY[addr]); break;
+        case 0x36: addr = addr_zero_page_x();      ROL(&MEMORY[addr]); break;
+        case 0x2E: addr = addr_abs();              ROL(&MEMORY[addr]); break;
+        case 0x3E: addr = addr_abs_x();            ROL(&MEMORY[addr]); break;
+        case 0x6A:                                 ROR(&ACCUMULATOR); break;
+        case 0x66: addr = addr_zero_page();        ROR(&MEMORY[addr]); break;
+        case 0x76: addr = addr_zero_page_x();      ROR(&MEMORY[addr]); break;
+        case 0x6E: addr = addr_abs();              ROR(&MEMORY[addr]); break;
+        case 0x7E: addr = addr_abs_x();            ROR(&MEMORY[addr]); break;
 
         // Jumps & Calls
-        case 0x4C: pt = addr_abs();              JMP(pt); break;
-        case 0x6C: pt = 0; /* indirect */        JMP(pt); break;
-        case 0x20: pt = addr_abs();              JSR(pt); break;
-        case 0x60: /* implied */                 RTS();   break;
+        case 0x4C: addr = addr_abs();              JMP(addr, false); break; // jmp absolute
+        case 0x6C: addr = addr_abs();              JMP(addr, true); break; // jmp indirect
+        case 0x20: addr = addr_abs();              JSR(addr); break; // this might be different like jmp
+        case 0x60: /* implied */                   RTS();   break;
 
         // Branches
-        case 0x90: pt = addr_immediate();        BCC(pt); break;
-        case 0x80: pt = addr_immediate();        BCS(pt); break;
-        case 0xF0: pt = addr_immediate();        BEQ(pt); break;
-        case 0x30: pt = addr_immediate();        BMI(pt); break;
-        case 0xD0: pt = addr_immediate();        BNE(pt); break;
-        case 0x10: pt = addr_immediate();        BPL(pt); break;
-        case 0x50: pt = addr_immediate();        BVC(pt); break;
-        case 0x70: pt = addr_immediate();        BVS(pt); break;
+        case 0x90: addr = ++PC;                    BCC(&MEMORY[addr]); break;
+        case 0x80: addr = ++PC;                    BCS(&MEMORY[addr]); break;
+        case 0xF0: addr = ++PC;                    BEQ(&MEMORY[addr]); break;
+        case 0x30: addr = ++PC;                    BMI(&MEMORY[addr]); break;
+        case 0xD0: addr = ++PC;                    BNE(&MEMORY[addr]); break;
+        case 0x10: addr = ++PC;                    BPL(&MEMORY[addr]); break;
+        case 0x50: addr = ++PC;                    BVC(&MEMORY[addr]); break;
+        case 0x70: addr = ++PC;                    BVS(&MEMORY[addr]); break;
 
         // Status Flag Changes
-        case 0x18: /* implied */                 CLC();  break;
-        case 0xD8: /* implied */                 CLD();  break;
-        case 0x58: /* implied */                 CLI();  break;
-        case 0xB8: /* implied */                 CLV();  break;
-        case 0x38: /* implied */                 SEC();  break;
-        case 0xF8: /* implied */                 SED();  break;
-        case 0x78: /* implied */                 SEI();  break;
+        case 0x18: /* implied */                   CLC();  break;
+        case 0xD8: /* implied */                   CLD();  break;
+        case 0x58: /* implied */                   CLI();  break;
+        case 0xB8: /* implied */                   CLV();  break;
+        case 0x38: /* implied */                   SEC();  break;
+        case 0xF8: /* implied */                   SED();  break;
+        case 0x78: /* implied */                   SEI();  break;
 
         // System Functions
-        case 0x00: /* implied */                 BRK();  break;
-        case 0xEA: /* implied */                 NOP();  break;
-        case 0x40: /* implied */                 RTI();  break;
+        case 0x00: /* implied */                   BRK();  break;
+        case 0xEA: /* implied */                   NOP();  break;
+        case 0x40: /* implied */                   RTI();  break;
 
         default:
             // note: illegal or undocumented opcode
